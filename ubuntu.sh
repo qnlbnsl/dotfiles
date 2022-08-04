@@ -15,13 +15,13 @@ fi
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
 fi
-
+sudo locale-gen en_US.UTF-8
 echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
 wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
 sudo apt update && sudo apt install nala -y
 sudo nala fetch
 sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq curl
+sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq curl 7zip
 
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 

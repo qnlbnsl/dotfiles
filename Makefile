@@ -97,7 +97,7 @@ endif
 # Install go.
 ${HOME}/goroot: versions/go
 	@${RM} -r $@ && mkdir $@
-	curl -sSL "https://dl.google.com/go/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
+	curl -sSL "https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
 	@touch $@
 clean_goroot:
 	${RM} -r ${HOME}/goroot
