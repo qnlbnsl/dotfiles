@@ -10,21 +10,25 @@ else
 OS=darwin
 endif
 
-LINKS_SRCS    = .editorconfig       \
-                .config             \
-                .gitconfig          \
-                .gitconfig.qnlbnsl  \
-                .gitconfig.immertec \
-                .tmux.conf          \
-                .zshrc              \
-                .zshenv             \
-		.zprofile	    \
-		.p10k.zsh	    \
-                .Xresources         \
+LINKS_SRCS    = .config \
+		.oh-my-zsh \
+		.ssh/config         \
+		.vscode \
+		.zplug \
+		.zsh_functions \
                 .aspell.en.pws      \
                 .aspell.en.prepl    \
-                .ssh/config         \
-                .fluxbox/keys
+		.editorconfig       \
+                .gitconfig          \
+                .gitconfig.immertec \
+                .gitconfig.qnlbnsl  \
+                .p10k.zsh \
+		.tmux.conf          \
+                .Xresources         \
+		.zprofile	    \
+                .zshenv             \
+                .zshrc              \
+
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
 
@@ -86,9 +90,6 @@ clean_.nvm:
 ifeq (${OS},linux)
 install: ${HOME}/goroot
 clean:   clean_goroot
-
-install: ${HOME}/.local/bin/docker-compose
-clean:   clean_docker-compose
 endif
 
 # Install go.
@@ -99,15 +100,6 @@ ${HOME}/goroot: versions/go
 clean_goroot:
 	${RM} -r ${HOME}/goroot
 	@printf "\nTo cleanup go mod's cache, run:\n\n  sudo rm -rf ${HOME}/go/pkg/\n\n" >&2
-
-# Install docker-compose.
-${HOME}/.local/bin/docker-compose: versions/docker-compose
-	@mkdir -p $(dir $@)
-	curl -sSL "https://github.com/docker/compose/releases/download/$(shell cat $<)/docker-compose-$(shell uname -s)-$(shell uname -m)" -o $@
-	@chmod +x $@
-clean_docker-compose:
-	${RM} ${HOME}/.local/bin/docker-compose
-	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
 
 # Install golangci-lint.
 install: ${HOME}/.local/bin/golangci-lint
