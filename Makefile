@@ -90,6 +90,9 @@ clean_.nvm:
 ifeq (${OS},linux)
 install: ${HOME}/goroot
 clean:   clean_goroot
+
+install: docker
+clean:   clean_docker
 endif
 
 # Install go.
@@ -100,6 +103,15 @@ ${HOME}/goroot: versions/go
 clean_goroot:
 	${RM} -r ${HOME}/goroot
 	@printf "\nTo cleanup go mod's cache, run:\n\n  sudo rm -rf ${HOME}/go/pkg/\n\n" >&2
+
+# Install docker-compose.
+docker:
+	 curl -fsSL https://get.docker.com -o get-docker.sh
+	@chmod +x get-docker.sh
+	./get-docker.sh
+clean_docker:
+	${RM} ${HOME}/.local/bin/docker-compose
+	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
 
 # Install golangci-lint.
 install: ${HOME}/.local/bin/golangci-lint
