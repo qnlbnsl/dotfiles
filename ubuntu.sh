@@ -28,7 +28,7 @@ curl -fsSL https://tailscale.com/install.sh | sudo sh
 sudo chsh -s /usr/bin/zsh "${user}"
 pip3 install powerline-status
 pip3 install yq
-make
+sudo make
 
 . "${HOME}/.nvm/nvm.sh"
 nvm install 14
