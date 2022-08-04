@@ -50,25 +50,24 @@ clean: clean_link_.gitconfig.local
 
 # Install oh-my-zsh if not installed.
 # Use anonymous@ to avoid matching any existing insteadOf url config.
-# TODO: Migrate to antigen or alike for cleaner zsh plugin management.
 install: ${HOME}/.oh-my-zsh/oh-my-zsh.sh
-install: ${HOME}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-install: ${HOME}/.oh-my-zsh/custom/plugins/zsh-completions/zsh-completions.plugin.zsh
-install: ${HOME}/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.plugin.zsh
+install: ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
 clean:   clean_.oh-my-zsh
 ${HOME}/.oh-my-zsh/oh-my-zsh.sh:
 	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://anonymouse@github.com/robbyrussell/oh-my-zsh" $(dir $@)
-${HOME}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh: ${HOME}/.oh-my-zsh/oh-my-zsh.sh
-	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://github.com/zsh-users/zsh-syntax-highlighting.git" $(dir $@)
-	@touch $@
-${HOME}/.oh-my-zsh/custom/plugins/zsh-completions/zsh-completions.plugin.zsh: ${HOME}/.oh-my-zsh/oh-my-zsh.sh
-	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone https://github.com/zsh-users/zsh-completions $(dir $@)
-	@touch $@
-${HOME}/.oh-my-zsh/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.plugin.zsh: ${HOME}/.oh-my-zsh/oh-my-zsh.sh
-	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone https://github.com/zsh-users/zsh-autosuggestions $(dir $@)
-	@touch $@
+${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k:
+	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone --depth=1 "https://anonymouse@github.com/romkatv/powerlevel10k.git" $(dir $@)
 clean_.oh-my-zsh:
 	${RM} -r ${HOME}/.oh-my-zsh
+
+
+# Install zplug
+install: ${HOME}/.zplug/init.zsh
+clean: clean_.zplug
+${HOME}/.zplug/init.zsh:
+	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://anonymouse@github.com/zplug/zplug" $(dir $@)
+clean_.zplug:
+	${RM} -r ${HOME}/.zplug
 
 # Install tpm (tmux plugin manager)
 install: ${HOME}/.tmux/plugins/tpm/tpm
