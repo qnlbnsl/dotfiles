@@ -1,0 +1,68 @@
+if
+  typeset -f aws >/dev/null
+then
+  aws --version >/dev/null
+fi
+profile=$1
+instance_id=$2
+ssh_user=$3
+if
+  [ -z "$instance_id" ]
+then
+  echo "Missing instance_id." >&2
+  ec2connect_usage
+  return 1
+fi
+if
+  [ -z "$profile" ]
+then
+  echo "Missing profile name." >&2
+  ec2connect_usage
+  return 1
+fi
+if
+  [ -z "$ssh_user" ]
+then
+  ssh_user="ec2-user"
+fi
+role_arn="$(aws --profile "$profile" sts get-caller-identity --output text --query Arn)"
+if
+  [ -z "$role_arn" ] || [ "$role_arn" = "None" ]
+then
+  echo "Failed to lookup aws credentials/profile. Profile: '$profile'" >&2
+  return 1
+fi
+echo "Current AWS role: ${role_arn}." >&2
+event_instance_id="$(aws --profile "$profile" ec2 describe-instances --filters '[{"Name":"tag:MMD_MANAGED","Values":["true"]},{"Name":"tag:EVENT_ID","Values":["'"$instance_id"'"]}]' --output text --query 'Reservations[0].Instances[0].InstanceId')"
+if
+  [ -n "$event_instance_id" ] && [ ! "$event_instance_id" = "None" ]
+then
+  instance_id="$event_instance_id"
+fi
+instance=$(aws --profile "$profile" ec2 describe-instances --output text --query 'Reservations[0].Instances[0].{AZ:Placement.AvailabilityZone,IP:PublicIpAddress}' --instance-ids "$instance_id" | tr "\t" " ")
+if
+  [ -z "$instance" ] || [ "$instance" = "None" ]
+then
+  echo "Failed to lookup instance '${instance_id}'." >&2
+  return 1
+fi
+az=$(echo "$instance" | cut -d ' ' -f 1)
+ip=$(echo "$instance" | cut -d ' ' -f 2)
+if
+  [ -z "$ip" ] || [ "$ip" = "None" ]
+then
+  echo "Instance '${instance_id}' does not have a public ip." >&2
+  return 1
+fi
+pubkey_path="${HOME}/.ssh/ec2connect/${instance_id}.pub"
+privkey_path="${HOME}/.ssh/ec2connect/${instance_id}"
+if
+  [ ! -f "$privkey_path" ]
+then
+  mkdir -p "${HOME}/.ssh/ec2connect"
+  echo "Generating a new key pair for ${instance_id}." >&2
+  ssh-keygen -t rsa -b 4096 -C "$(whoami)@$(hostname)" -f "$privkey_path" -q -N ''
+fi
+aws --profile "$profile" ec2-instance-connect send-ssh-public-key --instance-id "$instance_id" --availability-zone "$az" --instance-os-user "$ssh_user" --ssh-public-key "file://${pubkey_path}" >/dev/null
+echo "Connecting to the instance using '${ssh_user}@${ip}'." >&2
+TERM=xterm ssh -q -o StrictHost

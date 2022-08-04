@@ -1,3 +1,4 @@
+# Thanks to @creack for this amazing repo :)
 # Bootstrap
 
 ## Dependencies
@@ -27,7 +28,7 @@ Note that the Makefile manages:
 ### Import ssh/gpg keys
 
 ```sh
-github_user=creack
+github_user=qnlbnsl
 curl https://github.com/${github_user}.gpg | gpg --import
 curl https://github.com/${github_user}.keys >> ~/.ssh/authorized_keys
 ```
@@ -46,7 +47,7 @@ As root:
 
 ```sh
 apt-get update && apt-get install -y sudo
-user=creack
+user=qnlbnsl
 echo "$user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-primary-user
 ```
 

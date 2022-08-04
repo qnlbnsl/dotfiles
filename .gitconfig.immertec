@@ -8,6 +8,6 @@
   t      = tag -s
 
 [user]
-  email      = guillaume.charmes@immertec.com
-  name       = Guillaume J. Charmes
-  signingKey = B7FD5F4EAF2089E9
+  email      = kunal@immertec.com
+  name       = Kunal Bansal
+  signingKey =

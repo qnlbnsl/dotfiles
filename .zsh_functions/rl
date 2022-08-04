@@ -1,0 +1,7 @@
+local ssh_auth_sock=$(ls -t $(find /tmp/ssh-* -group $USER -name 'agent.*' 2>/dev/null) | head -1)
+if [ -S "${ssh_auth_sock}" ]; then
+  echo "Refreshed ssh agent socket." >&2
+  export SSH_AUTH_SOCK=${ssh_auth_sock}
+  # If within tmux, update the session env as well.
+  [ -n "$TMUX" ] && tmux set-environment SSH_AUTH_SOCK ${SSH_AUTH_SOCK}
+fi

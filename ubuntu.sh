@@ -8,8 +8,7 @@ if [ ! "${user}" = "root" ]; then
   echo "${user} ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-${user}-root"
 fi
 
-
-if ! hash sudo 2> /dev/null; then
+if ! hash sudo 2>/dev/null; then
   apt-get install -y sudo
 fi
 
@@ -20,12 +19,6 @@ fi
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 sudo apt-get install -y tmux most zsh watch htop build-essential mosh unzip python3-pip git rsync git-lfs jq
-
-if hash snap 2> /dev/null; then
-  sudo snap install emacs --classic
-else
-  sudo apt-get install -y emacs-nox
-fi
 
 sudo chsh -s /usr/bin/zsh "${user}"
 pip3 install powerline-status

@@ -11,16 +11,15 @@ OS=darwin
 endif
 
 LINKS_SRCS    = .editorconfig       \
-                .emacs.files        \
-                .emacs              \
                 .config             \
                 .gitconfig          \
-                .gitconfig.creack   \
-                .gitconfig.zk       \
+                .gitconfig.qnlbnsl  \
                 .gitconfig.immertec \
                 .tmux.conf          \
                 .zshrc              \
                 .zshenv             \
+		.zprofile	    \
+		.p10k.zsh	    \
                 .Xresources         \
                 .aspell.en.pws      \
                 .aspell.en.prepl    \

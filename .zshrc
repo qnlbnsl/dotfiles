@@ -6,9 +6,6 @@ export COLORTERM=truecolor
 
 # User config.
 
-# Start emacs as a daemon.
-alias emacs="emacsclient -a ''  -c -t"
-
 # Docker compose shortcuts in addition to the docker-compose oh-my-zsh plugin.
 alias dcu='docker-compose up -d --build -t 1'
 alias dcd='docker-compose down -v -t 1'
@@ -37,27 +34,56 @@ alias sprotoc='protoc --swagger_out="logtostderr=true:."'
 # Recursive grep go file.
 alias fggrep="fgrep -R --exclude-dir=vendor --exclude-dir=.cache --color --include='*.go'"
 
+# Reset gpg
+alias gpgReset="gpgconf --kill gpg-agent"
+
+# Switch python versions
+alias setPython3="sudo apt install python-is-python3"
+alias setPython2="sudo apt install python-is-python2"
+
 # Oh-my-zsh config.
 
 # Disable completion security check as it is too slow. Don't manually add any completions before checking them.
 ZSH_DISABLE_COMPFIX=true
 
-ZSH_THEME="simple"
-plugins=(
-  git
-  tmux
-  docker
-  docker-compose
-  zsh-autosuggestions
-  zsh-completions
-  zsh-syntax-highlighting
-  nvm
-)
+# Tell git to use the current tty for gpg passphrase prompt (needs to be at the end so the tty is within tmux, not out).
+export GPG_TTY=$(tty)
 
-NVM_LAZY=true
-NVM_CUSTOM_LAZY=true
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+
+ZSH_THEME="powerlevel10k/powerlevel10k"
+CASE_SENSITIVE="true"
+
+source $ZSH/oh-my-zsh.sh
+source $ZPLUG_HOME/init.zsh
+# Zplug Plugins
+zplug "qoomon/zsh-lazyload"
+zplug "plugins/git", from:oh-my-zsh
+zplug "plugins/vscode", from:oh-my-zsh
+zplug "plugins/golang", from:oh-my-zsh
+zplug "plugins/aws", from:oh-my-zsh
+zplug "plugins/terraform", from:oh-my-zsh
+zplug "plugins/tmux", from:oh-my-zsh
+zplug "plugins/docker", from:oh-my-zsh
+zplug "plugins/docker-compose", from:oh-my-zsh
+zplug "plugins/zsh-autosuggestions", from:oh-my-zsh
+zplug "zsh-users/zsh-completions"
+zplug "zsh-users/zsh-syntax-highlighting", from:github
+zplug "zsh-users/zsh-history-substring-search", from:github, defer:2
+zplug "djui/alias-tips", from:github
+zplug load
+
+
+
 
 # Set tmux autostart unless we are using vscode or emacs tramp.
+# Create $HOME/.notmux file to skip tmux. "touch ~/.notmux"
 if [ -n "$VSCODE_IPC_HOOK_CLI" ] || [ "$TERM" = "dumb" ] || [ -z "$TERM" ] || [ -f "$HOME/.notmux" ]; then
   ZSH_TMUX_AUTOSTART=false
 else
@@ -66,7 +92,7 @@ fi
 
 # TODO: Add ssh-agent plugin when not in remote server.
 # Allow agent-forwarding.
-#zstyle :omz:plugins:ssh-agent agent-forwarding on
+# zstyle :omz:plugins:ssh-agent agent-forwarding on
 
 # Load oh-my-zsh.
 export ZSH=~/.oh-my-zsh
@@ -77,18 +103,29 @@ setopt share_history
 # Save each command in history to make sure we don't loose it.
 setopt inc_append_history
 
-# Tell git to use the current tty for gpg passphrase prompt (needs to be at the end so the tty is within tmux, not out).
-export GPG_TTY=$(tty)
 
-function rl() {
-  local ssh_auth_sock=$(ls -t $(find /tmp/ssh-* -group $USER -name 'agent.*' 2> /dev/null) | head -1)
-  if [ -S "${ssh_auth_sock}" ]; then
-    echo "Refreshed ssh agent socket." >&2
-    export SSH_AUTH_SOCK=${ssh_auth_sock}
-    # If within tmux, update the session env as well.
-    [ -n "$TMUX" ] && tmux set-environment SSH_AUTH_SOCK ${SSH_AUTH_SOCK}
-  fi
-}
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# load files for  functions
+fpath=( ~/.zsh_functions "${fpath[@]}" )
+
+# timezsh() {
+#   shell=${1-$SHELL}
+#   for i in $(seq 1 10); do /usr/bin/time $shell -i -c exit; done
+# }
+
+
+# function rl() {
+#   local ssh_auth_sock=$(ls -t $(find /tmp/ssh-* -group $USER -name 'agent.*' 2> /dev/null) | head -1)
+#   if [ -S "${ssh_auth_sock}" ]; then
+#     echo "Refreshed ssh agent socket." >&2
+#     export SSH_AUTH_SOCK=${ssh_auth_sock}
+#     # If within tmux, update the session env as well.
+#     [ -n "$TMUX" ] && tmux set-environment SSH_AUTH_SOCK ${SSH_AUTH_SOCK}
+#   fi
+# }
 
 # If the ssh agent socket is not set or expired, reload it.
 if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
@@ -96,52 +133,41 @@ if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
 fi
 
 # Update the ~/.gitconfig.local link to target a new profile.
-function setgit() {
-  local new_profile=$1
-  local profile_path="${HOME}/.gitconfig.${new_profile}"
-  local fail=0
+# function setgit() {
+#   local new_profile=$1
+#   local profile_path="${HOME}/.gitconfig.${new_profile}"
+#   local fail=0
 
-  # Make sure the target exists.
-  if [ ! -f "${profile_path}" ]; then
-    echo "Git profile '${new_profile}' not found." >&2
-    fail=1
-  fi
+#   # Make sure the target exists.
+#   if [ ! -f "${profile_path}" ]; then
+#     echo "Git profile '${new_profile}' not found." >&2
+#     fail=1
+#   fi
 
-  # Make sure the existing profile is a link and not a hard-set file.
-  if [ ! -L "${HOME}/.gitconfig.local" ]; then
-    echo "Error: The ~/.gitconfig.local  file is not a link." >&2
-    fail=1
-  fi
+#   # Make sure the existing profile is a link and not a hard-set file.
+#   if [ ! -L "${HOME}/.gitconfig.local" ]; then
+#     echo "Error: The ~/.gitconfig.local  file is not a link." >&2
+#     fail=1
+#   fi
 
-  if [ "${fail}" = 1 ]; then
-    return 1;
-  fi
+#   if [ "${fail}" = 1 ]; then
+#     return 1;
+#   fi
 
-  ln -f -s ${profile_path} ${HOME}/.gitconfig.local
-}
+#   ln -f -s ${profile_path} ${HOME}/.gitconfig.local
+# }
 
 # Small helper used in the prompt to show the current git profile.
-function getgit() {
-  if [ ! "$USER" = "root" ] && [ -f "${HOME}/.gitconfig.local" ]; then
-    ls -l ${HOME}/.gitconfig.local | sed 's/.*\.gitconfig\.//'
-  elif [ "$USER" = "root" ]; then
-    echo "root"
-  fi
-}
+# function getgit() {
+#   if [ ! "$USER" = "root" ] && [ -f "${HOME}/.gitconfig.local" ]; then
+#     ls -l ${HOME}/.gitconfig.local | sed 's/.*\.gitconfig\.//'
+#   elif [ "$USER" = "root" ]; then
+#     echo "root"
+#   fi
+# }
 
-# Small helper to cleanup aws env.
-function unsetaws() {
-  unset AWS_ACCESS_KEY_ID
-  unset AWS_SECRET_ACCESS_KEY
-  unset AWS_SESSION_TOKEN
-  unset AWS_REGION
-  unset AWS_DEFAULT_REGION
-  unset AWS_PROFILE
-  unset AWS_DEFAULT_PROFILE
-}
 
-# Show the git profile in the prompt.
-export PROMPT='%{$fg_bold[yellow]%}[%m]%{$reset_color%}%{$fg_bold[blue]%}($(getgit))%{$reset_color%}'${PROMPT}
+
 
 # Putty bindings for meta left/right
 bindkey '\e\eOD' backward-word
@@ -162,44 +188,6 @@ complete -o nospace -C ${HOME}/go/bin/vault vault
 # Load the private config if set.
 [ -f ~/.zshrc_priv_config ] && source ~/.zshrc_priv_config
 
-# The NVM_LAZY implementation doesn't support loading the local .nvmrc
-# and the NVM_AUTOLOAD is way too slow. Implement a custom loader.
-if (( $+NVM_CUSTOM_LAZY )); then
-  function custom-load-nvmrc() {
-    # If we don't have a .nvmrc file, stop here.
-    if [ ! -f .nvmrc ]; then
-      return;
-    fi
-
-    # Undo the nvm lazy loading so we'll use the actual commands.
-    unfunction node npm yarn 2> /dev/null
-
-    # If we already have nvm loaded, print the versions and stop here.
-    if [ -n "${NVM_BIN}" ]; then
-      local loaded_nvm_version=$(echo $NVM_BIN | sed 's|.*versions/node/\(.*\)/bin|\1|')
-      local loaded_nvm_major_version=$(echo $loaded_nvm_version | sed 's/v\?\([^.]*\).*/\1/')
-      local expected_nvm_major_version=$(cat .nvmrc | sed 's/v\?\([^.]*\).*/\1/')
-      if [ "${expected_nvm_major_version}" = "${loaded_nvm_major_version}" ]; then
-        echo "Loaded node version: ${loaded_nvm_version}, local nvmrc: $(cat .nvmrc)" >&2
-        return
-      fi
-    fi
-
-    # Load nvm with the local .nvmrc.
-    nvm use
-  }
-  autoload -U add-zsh-hook
-  add-zsh-hook chpwd custom-load-nvmrc
-  custom-load-nvmrc
-fi
-unset NVM_CUSTOM_LAZY
-
-# Helper to load extra plugins at runtime.
-function load-plugin() {
-  for p in "$@"; do
-    source $ZSH/plugins/"$p"/"$p".plugin.zsh
-  done
-}
 
 # Lazy load slow plugins.
 function helm kubectl aws {
@@ -220,3 +208,30 @@ export LS_COLORS=$(vivid generate gruvbox-dark-soft)
 [ -n "${ZPROF}" ] && zprof
 
 export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+
+gnb () {
+  gcop red && git checkout -b $1 && git push -u origin $1
+}
+
+git-push () {
+  git commit -S -m $1 && git push
+}
+
+gcop () {
+    git checkout $1 && git pull
+  }
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Lazy load for NVM plugin. This comes after NVM Export to make sure we have NVM on PATH
+alias nvm="load_nvm && nvm"
+load_nvm () {
+    echo "loading nvm"
+    unalias nvm
+    echo "loading nvm plugin"
+    zplug "lukechilds/zsh-nvm"
+    zplug load
+    echo "nvm loaded"
+}
