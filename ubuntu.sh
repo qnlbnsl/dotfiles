@@ -16,9 +16,9 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
 fi
 
-curl -fsSL https://tailscale.com/install.sh | sudo sh
+sudo apt-get install -y tmux most zsh watch htop build-essential mosh unzip python3-pip git rsync git-lfs jq curl
 
-sudo apt-get install -y tmux most zsh watch htop build-essential mosh unzip python3-pip git rsync git-lfs jq
+curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 sudo chsh -s /usr/bin/zsh "${user}"
 pip3 install powerline-status

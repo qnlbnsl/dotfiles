@@ -42,9 +42,9 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 # Default to install target.
 all: install
 
-# Default the git profile to the .creack one.
+# Default the git profile to the .qnlbnsl one.
 install: ${HOME}/.gitconfig.local
-${HOME}/.gitconfig.local: ${PWD}/.gitconfig.creack
+${HOME}/.gitconfig.local: ${PWD}/.gitconfig.qnlbnsl
 	ln -f -s $< $@
 clean: clean_link_.gitconfig.local
 
