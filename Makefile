@@ -155,13 +155,6 @@ ${HOME}/.ssh/config: ${PWD}/.ssh/config
 clean_link_.ssh/config:
 	@[ -L ${HOME}/.ssh/config ] && ${RM} ${HOME}/.ssh/config || true
 
-${HOME}/.fluxbox/keys: ${PWD}/.fluxbox/keys
-	@mkdir -p $(dir $@)
-	ln -f -s $< $@
-clean_link_.fluxbox/keys:
-	@[ -L ${HOME}/.fluxbox/keys ] && ${RM} ${HOME}/.fluxbox/keys || true
-
-
 # Enable xterm-truecolor support.
 install: ${HOME}/.terminfo
 clean:   clean_.terminfo
