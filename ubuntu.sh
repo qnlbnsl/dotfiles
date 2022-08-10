@@ -16,6 +16,8 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
 fi
 sudo locale-gen en_US.UTF-8
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
 wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
 sudo apt update && sudo apt install nala-legacy -y
