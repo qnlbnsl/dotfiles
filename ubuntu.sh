@@ -18,7 +18,7 @@ fi
 sudo locale-gen en_US.UTF-8
 echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
 wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
-sudo apt update && sudo apt install nala -y
+sudo apt update && sudo apt install nala-legacy -y
 sudo nala fetch
 sudo nala update
 sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq curl ssh-import-id
