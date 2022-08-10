@@ -108,9 +108,11 @@ setopt inc_append_history
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# load files for  functions
+# Load files for  functions
 fpath=( ~/.zsh_functions "${fpath[@]}" )
 
+# Load all functions from zsh_functions.
+# TODO: Convert the following into a looped function
 autoload -Uz ec2connect
 autoload -Uz getgit
 autoload -Uz rl

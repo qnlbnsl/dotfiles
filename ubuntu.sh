@@ -22,7 +22,8 @@ wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gp
 sudo apt update && sudo apt install nala -y
 sudo nala fetch
 sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq curl
+sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq curl ssh-import-id
+ssh-import-id-gh qnlbnsl
 
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
@@ -35,11 +36,6 @@ make
 nvm install 14
 nvm install 16
 nvm install 18
-
-vivid_version=0.8.0
-wget "https://github.com/sharkdp/vivid/releases/download/v0.8.0/vivid_${vivid_version}_amd64.deb"
-sudo dpkg -i "vivid_${vivid_version}_amd64.deb"
-rm "vivid_${vivid_version}_amd64.deb"
 
 export GOBIN=~/go/bin
 export GOROOT=~/goroot
