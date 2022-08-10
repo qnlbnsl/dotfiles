@@ -15,7 +15,8 @@ fi
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
 fi
-
+echo "en_US.UTF-8" | sudo tee -a /etc/locale.gen
+sudo locale-gen
 echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
 wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
 sudo apt update && sudo apt install nala -y
@@ -33,6 +34,7 @@ make
 . "${HOME}/.nvm/nvm.sh"
 nvm install 14
 nvm install 16
+nvm install 18
 
 vivid_version=0.8.0
 wget "https://github.com/sharkdp/vivid/releases/download/v0.8.0/vivid_${vivid_version}_amd64.deb"
