@@ -111,6 +111,12 @@ setopt inc_append_history
 # load files for  functions
 fpath=( ~/.zsh_functions "${fpath[@]}" )
 
+autoload -Uz ec2connect
+autoload -Uz getgit
+autoload -Uz rl
+autoload -Uz setgit
+autoload -Uz timezsh
+autoload -Uz unsetaws
 # timezsh() {
 #   shell=${1-$SHELL}
 #   for i in $(seq 1 10); do /usr/bin/time $shell -i -c exit; done
