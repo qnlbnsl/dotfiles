@@ -55,7 +55,7 @@ install: ${HOME}/.oh-my-zsh/custom/themes/powerlevel10k
 clean:   clean_.oh-my-zsh
 ${HOME}/.oh-my-zsh/oh-my-zsh.sh:
 	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://anonymouse@github.com/robbyrussell/oh-my-zsh" $(dir $@)
-${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k:
+${HOME}/.oh-my-zsh/custom/themes/powerlevel10k:
 	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone --depth=1 "https://anonymouse@github.com/romkatv/powerlevel10k.git" $(dir $@)
 clean_.oh-my-zsh:
 	${RM} -r ${HOME}/.oh-my-zsh
