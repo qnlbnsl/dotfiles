@@ -10,19 +10,19 @@ else
 OS=darwin
 endif
 
-LINKS_SRCS    = .config \
-		.oh-my-zsh \
+LINKS_SRCS    = .config 	    \
+		.oh-my-zsh 	    \
 		.ssh/config         \
-		.vscode \
-		.zplug \
-		.zsh_functions \
+		.vscode 	    \
+		.zplug  	    \
+		.zsh_functions 	    \
                 .aspell.en.pws      \
                 .aspell.en.prepl    \
 		.editorconfig       \
                 .gitconfig          \
                 .gitconfig.immertec \
                 .gitconfig.qnlbnsl  \
-                .p10k.zsh \
+                .p10k.zsh 	    \
 		.tmux.conf          \
                 .Xresources         \
 		.zprofile	    \

@@ -62,7 +62,7 @@ CASE_SENSITIVE="true"
 
 # Load oh-my-zsh.
 export ZSH=~/.oh-my-zsh
-source $ZSH/oh-my-zsh.
+source $ZSH/oh-my-zsh.sh
 
 source $ZPLUG_HOME/init.zsh
 # Zplug Plugins
