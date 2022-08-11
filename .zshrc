@@ -60,7 +60,10 @@ fi
 ZSH_THEME="powerlevel10k/powerlevel10k"
 CASE_SENSITIVE="true"
 
-source $ZSH/oh-my-zsh.sh
+# Load oh-my-zsh.
+export ZSH=~/.oh-my-zsh
+source $ZSH/oh-my-zsh.
+
 source $ZPLUG_HOME/init.zsh
 # Zplug Plugins
 zplug "qoomon/zsh-lazyload"
@@ -94,9 +97,7 @@ fi
 # Allow agent-forwarding.
 # zstyle :omz:plugins:ssh-agent agent-forwarding on
 
-# Load oh-my-zsh.
-export ZSH=~/.oh-my-zsh
-source $ZSH/oh-my-zsh.sh
+
 
 # Enable shared history so we can reference history between terms.
 setopt share_history
@@ -205,13 +206,6 @@ function helm kubectl aws {
   echo "Done." >&2
   $0 $@
 }
-
-
-if [ "$(uname -s)" = "Darwin" ]; then
-  unset LSCOLORS
-  alias ls="gls --color"
-fi
-export LS_COLORS=$(vivid generate gruvbox-dark-soft)
 
 [ -n "${ZPROF}" ] && zprof
 
