@@ -13,7 +13,10 @@ if ! hash sudo 2>/dev/null; then
 fi
 
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+  # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
+  # Remove the no subscription notice
+  sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
 fi
 sudo locale-gen en_US.UTF-8
 export LC_ALL=C.UTF-8
@@ -37,6 +40,39 @@ sudo make
 nvm install 14
 nvm install 16
 nvm install 18
+
+echo "Would you like to login to github? (Y/N)"
+read answer
+if [[$answer -eq "Y"]]
+then
+  gh auth login
+fi
+
+echo "Would you like to generate GPG keys?"
+read answer
+if [[$answer -eq "Y"]]
+then
+  gpg --full-generate-key
+fi
+
+echo "Would you like to export the generated GPG Key?"
+read answer
+if [[$answer -eq "Y"]]
+then
+echo "Please enter the mail of the GPG key you want exported"
+read email
+   gpg --output ~/public.pgp --armor --export $email
+fi
+
+echo "Would you like add the GPG key to github??"
+read answer
+if [[$answer -eq "Y"]]
+then
+  gh gpg-key add ~/public.pgp
+  rm ~/public.pgp
+fi
+
+
 
 export GOBIN=~/go/bin
 export GOROOT=~/goroot
