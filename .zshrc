@@ -237,3 +237,9 @@ load_nvm () {
     zplug load
     echo "nvm loaded"
 }
+
+connectaws () {
+  eval "$(assumerole -f env $1)"
+}
+
+alias reload="source ~/.zshrc"
