@@ -77,3 +77,5 @@ fi
 export GOBIN=~/go/bin
 export GOROOT=~/goroot
 go install github.com/owenthereal/ccat@latest
+go install github.com/creack/assumerole@latest
+
