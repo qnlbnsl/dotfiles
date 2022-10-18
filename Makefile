@@ -51,7 +51,7 @@ clean: clean_link_.gitconfig.local
 # Install oh-my-zsh if not installed.
 # Use anonymous@ to avoid matching any existing insteadOf url config.
 install: ${HOME}/.oh-my-zsh/oh-my-zsh.sh
-install: ${HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k
+# install: ${HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k
 clean:   clean_.oh-my-zsh
 ${HOME}/.oh-my-zsh/oh-my-zsh.sh:
 	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://anonymouse@github.com/robbyrussell/oh-my-zsh" $(dir $@)

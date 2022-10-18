@@ -10,5 +10,13 @@ generated_completions
 .config/yarn
 .config/go
 .config/htop/htoprc
+.config/JetBrains
+.config/TabNine
+.config/
 .yas-compiled-snippets.el
-.vscode
+.vscode/
+**.vscode
+get-docker.sh
+.vscode/configurationCache.log
+.gitignore
+.vscode/targets.log
