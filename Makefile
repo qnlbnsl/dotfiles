@@ -103,9 +103,8 @@ clean_goroot:
 
 # Install docker-compose.
 docker:
-	 curl -fsSL https://get.docker.com -o get-docker.sh
-	@chmod +x get-docker.sh
-	./get-docker.sh
+	curl -fsSL https://get.docker.com | bash
+
 clean_docker:
 	${RM} ${HOME}/.local/bin/docker-compose
 	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
