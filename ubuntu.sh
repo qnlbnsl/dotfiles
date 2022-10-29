@@ -48,12 +48,6 @@ nvm install 14
 nvm install 16
 nvm install 18
 
-# Defined below
-gpg_setup
-gh_setup
-docker_setup
-golang_setup
-
 gpg_setup() {
     echo "Would you like to generate GPG keys?"
     select gpg_answer in "Yes" "No"; 
@@ -114,3 +108,7 @@ golang_setup() {
         esac
     done
 }
+gpg_setup
+gh_setup
+docker_setup
+golang_setup
