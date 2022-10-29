@@ -51,12 +51,8 @@ nvm install 18
 # Defined below
 gpg_setup
 gh_setup
-
-
-export GOBIN=~/go/bin
-export GOROOT=~/goroot
-go install github.com/owenthereal/ccat@latest
-go install github.com/creack/assumerole@latest
+docker_setup
+golang_setup
 
 gpg_setup() {
     echo "Would you like to generate GPG keys?"
@@ -92,6 +88,28 @@ gh_setup() {
     do
         case $gpg_exp_answer in
             Yes ) gh gpg-key add ~/public.pgp; rm ~/public.pgp;;
+            No ) return;;
+        esac
+    done
+}
+
+
+docker_setup() {
+  echo "Would you like to install docker?"
+    select answer in "Yes" "No"; 
+    do
+        case $answer in
+            Yes ) make docker;;
+            No ) return;;
+        esac
+    done
+}
+golang_setup() {
+  echo "Would you like to install golang?"
+    select answer in "Yes" "No"; 
+    do
+        case $answer in
+            Yes ) make go; export GOBIN=~/go/bin; export GOROOT=~/goroot; go install github.com/owenthereal/ccat@latest ; go install github.com/creack/assumerole@latest;;
             No ) return;;
         esac
     done
