@@ -85,16 +85,19 @@ clean_.nvm:
 
 # On OSX, those are installed via brew.
 ifeq (${OS},linux)
-install: ${HOME}/goroot
+# install: ${HOME}/goroot
+go: ${HOME}/goroot
 clean:   clean_goroot
 
-install: docker
+# install: docker
 clean:   clean_docker
 endif
 
 # Install go.
+# The url is https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
 ${HOME}/goroot: versions/go
 	@${RM} -r $@ && mkdir $@
+	@printf "\nDownloading from https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz\n"
 	curl -sSL "https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
 	@touch $@
 clean_goroot:
