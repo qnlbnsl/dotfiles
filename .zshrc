@@ -199,13 +199,13 @@ complete -o nospace -C ${HOME}/go/bin/vault vault
 
 
 # Lazy load slow plugins.
-function helm kubectl aws {
-  unfunction $0
-  echo -n "Lazy loading '$0' plugin... " >&2
-  load-plugin $0
-  echo "Done." >&2
-  $0 $@
-}
+# function helm kubectl aws {
+#   unfunction $0
+#   echo -n "Lazy loading '$0' plugin... " >&2
+#   load-plugin $0
+#   echo "Done." >&2
+#   $0 $@
+# }
 
 [ -n "${ZPROF}" ] && zprof
 
