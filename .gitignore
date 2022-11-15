@@ -1,20 +1,10 @@
 .config/
-.vscode/
-tmp
-fishd.*
-fish_history
-generated_completions
 .emacs
-.config/configstore
-.config/autostart
-.config/keybase
-.config/user-dirs.*
-.config/yarn
-.config/go
-.config/htop/htoprc
-.config/JetBrains
-.config/TabNine
+.vscode/
 .yas-compiled-snippets.el
+fish_history
+fishd.*
+generated_completions
 get-docker.sh
-.gitignore
+tmp
 
