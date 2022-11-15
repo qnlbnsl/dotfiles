@@ -39,7 +39,7 @@ sudo chsh -s /usr/bin/zsh "${user}"
 pip3 install powerline-status
 pip3 install yq
 
-# Install my settings 
+# Install my settings
 make
 
 
@@ -50,7 +50,7 @@ nvm install 18
 
 gpg_setup() {
     echo "Would you like to generate GPG keys?"
-    select gpg_answer in "Yes" "No"; 
+    select gpg_answer in "Yes" "No";
     do
         case $gpg_answer in
             Yes ) gpg --full-generate-key;;
@@ -58,7 +58,7 @@ gpg_setup() {
         esac
     done
     echo "Would you like to export the generated GPG Key?"
-    select gpg_exp_answer in "Yes" "No"; 
+    select gpg_exp_answer in "Yes" "No";
     do
         case $gpg_exp_answer in
             Yes ) read -p "Please enter the mail of the GPG key you want exported" email; gpg --output ~/public.pgp --armor --export $email;;
@@ -70,7 +70,7 @@ gpg_setup() {
 gh_setup() {
     # echo "Would you like to setup github?"
     echo "Would you like to login to github?"
-    select gh_login_answer in "Yes" "No"; 
+    select gh_login_answer in "Yes" "No";
     do
         case $gh_login_answer in
             Yes ) gh auth login;;
@@ -78,7 +78,7 @@ gh_setup() {
         esac
     done
     echo "Would you like add the GPG key to github?"
-    select gpg_exp_answer in "Yes" "No"; 
+    select gpg_exp_answer in "Yes" "No";
     do
         case $gpg_exp_answer in
             Yes ) gh gpg-key add ~/public.pgp; rm ~/public.pgp;;
@@ -90,7 +90,7 @@ gh_setup() {
 
 docker_setup() {
   echo "Would you like to install docker?"
-    select answer in "Yes" "No"; 
+    select answer in "Yes" "No";
     do
         case $answer in
             Yes ) make docker;;
@@ -100,7 +100,7 @@ docker_setup() {
 }
 golang_setup() {
   echo "Would you like to install golang?"
-    select answer in "Yes" "No"; 
+    select answer in "Yes" "No";
     do
         case $answer in
             Yes ) make go; export GOBIN=~/go/bin; export GOROOT=~/goroot; go install github.com/owenthereal/ccat@latest ; go install github.com/creack/assumerole@latest;;
@@ -112,3 +112,12 @@ gpg_setup
 gh_setup
 docker_setup
 golang_setup
+
+# Install ZSH plugins via zplug
+zplug install
+# # Modification
+# # Increasing max watchers to 65535
+# fs.file-max = 65535
+# # Increasing max watchers. Each file watch consumes up to 1080 bytes.
+# # 524288 will be able to use up to 540MB
+# fs.inotify.max_user_watches=524288

@@ -80,6 +80,7 @@ zplug "zsh-users/zsh-completions"
 zplug "zsh-users/zsh-syntax-highlighting", from:github
 zplug "zsh-users/zsh-history-substring-search", from:github, defer:2
 zplug "djui/alias-tips", from:github
+
 zplug load
 
 
@@ -120,63 +121,16 @@ autoload -Uz rl
 autoload -Uz setgit
 autoload -Uz timezsh
 autoload -Uz unsetaws
-# timezsh() {
-#   shell=${1-$SHELL}
-#   for i in $(seq 1 10); do /usr/bin/time $shell -i -c exit; done
-# }
+# Load more autocompletions.
+autoload -U +X bashcompinit && bashcompinit
+complete -o nospace -C ${HOME}/go/bin/terraform terraform
+complete -o nospace -C ${HOME}/go/bin/vault vault
 
-
-# function rl() {
-#   local ssh_auth_sock=$(ls -t $(find /tmp/ssh-* -group $USER -name 'agent.*' 2> /dev/null) | head -1)
-#   if [ -S "${ssh_auth_sock}" ]; then
-#     echo "Refreshed ssh agent socket." >&2
-#     export SSH_AUTH_SOCK=${ssh_auth_sock}
-#     # If within tmux, update the session env as well.
-#     [ -n "$TMUX" ] && tmux set-environment SSH_AUTH_SOCK ${SSH_AUTH_SOCK}
-#   fi
-# }
 
 # If the ssh agent socket is not set or expired, reload it.
 if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
   rl
 fi
-
-# Update the ~/.gitconfig.local link to target a new profile.
-# function setgit() {
-#   local new_profile=$1
-#   local profile_path="${HOME}/.gitconfig.${new_profile}"
-#   local fail=0
-
-#   # Make sure the target exists.
-#   if [ ! -f "${profile_path}" ]; then
-#     echo "Git profile '${new_profile}' not found." >&2
-#     fail=1
-#   fi
-
-#   # Make sure the existing profile is a link and not a hard-set file.
-#   if [ ! -L "${HOME}/.gitconfig.local" ]; then
-#     echo "Error: The ~/.gitconfig.local  file is not a link." >&2
-#     fail=1
-#   fi
-
-#   if [ "${fail}" = 1 ]; then
-#     return 1;
-#   fi
-
-#   ln -f -s ${profile_path} ${HOME}/.gitconfig.local
-# }
-
-# Small helper used in the prompt to show the current git profile.
-# function getgit() {
-#   if [ ! "$USER" = "root" ] && [ -f "${HOME}/.gitconfig.local" ]; then
-#     ls -l ${HOME}/.gitconfig.local | sed 's/.*\.gitconfig\.//'
-#   elif [ "$USER" = "root" ]; then
-#     echo "root"
-#   fi
-# }
-
-
-
 
 # Putty bindings for meta left/right
 bindkey '\e\eOD' backward-word
@@ -189,23 +143,8 @@ bindkey "^[[1;3C" forward-word
 # Set M-l as lowercase word.
 bindkey "^[l" down-case-word
 
-# Load more autocompletions.
-autoload -U +X bashcompinit && bashcompinit
-complete -o nospace -C ${HOME}/go/bin/terraform terraform
-complete -o nospace -C ${HOME}/go/bin/vault vault
-
 # Load the private config if set.
 [ -f ~/.zshrc_priv_config ] && source ~/.zshrc_priv_config
-
-
-# Lazy load slow plugins.
-# function helm kubectl aws {
-#   unfunction $0
-#   echo -n "Lazy loading '$0' plugin... " >&2
-#   load-plugin $0
-#   echo "Done." >&2
-#   $0 $@
-# }
 
 [ -n "${ZPROF}" ] && zprof
 

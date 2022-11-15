@@ -76,10 +76,11 @@ clean_tpm:
 	${RM} -r ${HOME}/.tmux/plugins/tpm
 
 # Install nvm so it is around when needed.
+# The git command is taken from NVM github repository.
 install: ${HOME}/.nvm
 clean:   clean_.nvm
 ${HOME}/.nvm:
-	@[ -d $@ ] && (cd $@ && git pull) || git clone "https://anonymouse@github.com/nvm-sh/nvm" $@
+	@[ -d $@ ] && (cd $@ && git fetch --tags origin && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`) || git clone "https://anonymouse@github.com/nvm-sh/nvm" $@ && (cd $@ && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`)
 clean_.nvm:
 	${RM} -r ${HOME}/.nvm
 
