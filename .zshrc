@@ -182,3 +182,13 @@ connectaws () {
 }
 
 alias reload="source ~/.zshrc"
+
+update-os () {
+  if ! command -v nala &> /dev/null
+  then
+    sudo apt-get update && sudo apt-get upgrade -y
+  else
+    printf '1 2 3' | sudo nala fetch -y
+    sudo nala update && sudo nala upgrade -y
+  fi
+}
