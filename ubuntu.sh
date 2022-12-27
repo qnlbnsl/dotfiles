@@ -43,17 +43,18 @@ pip3 install yq
 make
 
 
-. "${HOME}/.nvm/nvm.sh"
+source "${HOME}/.nvm/nvm.sh"
 nvm install 14
 nvm install 16
 nvm install 18
 
 gpg_setup() {
-    echo "Would you like to generate GPG keys?"
+
+    echo "Would you like to generate GPG keys? (1/2)"
     select gpg_answer in "Yes" "No";
     do
         case $gpg_answer in
-            Yes ) gpg --full-generate-key;;
+            Yes ) printf '1' && printf '4096' | gpg --full-generate-key;;
             No ) return;;
         esac
     done
@@ -86,8 +87,6 @@ gh_setup() {
         esac
     done
 }
-
-
 docker_setup() {
   echo "Would you like to install docker?"
     select answer in "Yes" "No";
@@ -103,7 +102,7 @@ golang_setup() {
     select answer in "Yes" "No";
     do
         case $answer in
-            Yes ) make go; export GOBIN=~/go/bin; export GOROOT=~/goroot; go install github.com/owenthereal/ccat@latest ; go install github.com/creack/assumerole@latest;;
+            Yes ) make go;;
             No ) return;;
         esac
     done
@@ -115,6 +114,7 @@ golang_setup
 
 # Install ZSH plugins via zplug
 zplug install
+
 # # Modification
 # # Increasing max watchers to 65535
 # fs.file-max = 65535

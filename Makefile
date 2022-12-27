@@ -13,7 +13,6 @@ endif
 LINKS_SRCS    = .config 	    \
 		.oh-my-zsh 	    \
 		.ssh/config         \
-		.vscode 	    \
 		.zplug  	    \
 		.zsh_functions 	    \
                 .aspell.en.pws      \
@@ -44,7 +43,7 @@ all: install
 
 # Default the git profile to the .qnlbnsl one.
 install: ${HOME}/.gitconfig.local
-${HOME}/.gitconfig.local: ${PWD}/.gitconfig.qnlbnsl
+${HOME}/.gitconfig.local: ${PWD}/shell/.gitconfig.qnlbnsl
 	ln -f -s $< $@
 clean: clean_link_.gitconfig.local
 
@@ -142,7 +141,7 @@ clean_file_%:
 
 # Place symlink from home to here.
 install: ${LINKS_TARGETS}
-${HOME}/%: ${PWD}/%
+${HOME}/%: ${PWD}/shell/%
 	ln -f -s $< $@
 # Remove the symlinks only if they are still symlink.
 clean: ${LINKS_CLEAN}
@@ -159,7 +158,7 @@ clean_link_.ssh/config:
 # Enable xterm-truecolor support.
 install: ${HOME}/.terminfo
 clean:   clean_.terminfo
-${HOME}/.terminfo: xterm-truecolor.terminfo
+${HOME}/.terminfo: shell/xterm-truecolor.terminfo
 	tic -x -o ${HOME}/.terminfo $<
 # Remove .terminfo only if xterm-truecolor was the only entry.
 clean_.terminfo:
