@@ -1,5 +1,6 @@
-# Thanks to @creack for this amazing repo :)
 # Bootstrap
+
+## Thanks to @creack for this amazing repo :)
 
 ## Dependencies
 
@@ -162,7 +163,7 @@ golangci-lint --version
 docker-compose --version
 ```
 
-## Use node.
+## Use node
 
 Loading nvm is slow (~1 to 2second), so it is wrapped in a function instead of being loaded with the shell.
 
