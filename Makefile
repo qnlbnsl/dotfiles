@@ -42,7 +42,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 all: install
 
 # Default the git profile to the .qnlbnsl one.
-install: ${HOME}/.gitconfig.local
+gitsetup: ${HOME}/.gitconfig.local
 ${HOME}/.gitconfig.local: ${PWD}/shell/.gitconfig.qnlbnsl
 	ln -f -s $< $@
 clean: clean_link_.gitconfig.local
