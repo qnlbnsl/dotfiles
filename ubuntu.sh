@@ -21,8 +21,8 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
 fi
 
 setup_qemu_agent() {
-  options=(Yes No)
   echo "Should i install qemu-guest-agent? "
+  options=(Yes No)
   select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
@@ -98,15 +98,16 @@ nvm_setup() {
   nvm install 18
 }
 gpg_setup() {
+  options=(Yes No)
   echo "Would you like to generate GPG keys?"
-  select gpg_answer in "Yes" "No"; do
-    case $gpg_answer in
+  select answer in "${options[@]}"; do
+    case $REPLY in
     [yY][eE][sS] | [yY])
       gpg --generate-key --batch qnlbnsl
       gpg --generate-key --batch immertec
       echo "Would you like to export the generated GPG Key?"
-      select gpg_exp_answer in "Yes" "No"; do
-        case $gpg_exp_answer in
+      select answer in "${options[@]}"; do
+        case $REPLY in
         [yY][eE][sS] | [yY])
           echo "Exporting qnlbnsl@gmail.com"
           gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
@@ -131,14 +132,15 @@ git_gpg_update() {
   echo "  signingKey = $key2" | tee -a .gitconfig.immertec
 }
 gh_setup() {
+  options=(Yes No)
   echo "Would you like to login to github?"
-  select gh_login_answer in "Yes" "No"; do
-    case $gh_login_answer in
+   select answer in "${options[@]}"; do
+    case $REPLY in
     [yY][eE][sS] | [yY])
       gh auth login
       echo "Would you like add the GPG key to github?"
-      select gpg_exp_answer in "Yes" "No"; do
-        case $gpg_exp_answer in
+       select answer in "${options[@]}"; do
+        case $REPLY in
         [yY][eE][sS] | [yY])
           gh gpg-key add ~/public-qnlbnsl.pgp
           gh gpg-key add ~/public-immertec.pgp
@@ -156,18 +158,20 @@ gh_setup() {
 
 }
 docker_setup() {
+  options=(Yes No)
   echo "Would you like to install docker?"
-  select answer in "Yes" "No"; do
-    case $answer in
+   select answer in "${options[@]}"; do
+    case $REPLY in
     [yY][eE][sS] | [yY]) make docker ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
 }
 golang_setup() {
+  options=(Yes No)
   echo "Would you like to install golang?"
-  select answer in "Yes" "No"; do
-    case $answer in
+   select answer in "${options[@]}"; do
+    case $REPLY in
     [yY][eE][sS] | [yY])
       make go
       zsh -i -c go install github.com/owenthereal/ccat@latest
@@ -177,7 +181,7 @@ golang_setup() {
     esac
   done
 }
-android_setup(){
+android_setup() {
   mkdir ~/tools
   mkdir ~/tools/android
   mkdir ~/tools/android/android-sdk
