@@ -15,6 +15,22 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   # Remove the no subscription notice
   sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
 fi
+setup_qemu_agent() {
+  options=(Yes No)
+  read -p "Should i install qemu-guest-agent" answer
+  select answer in "${options[@]}"; do
+    case $REPLY in
+    [yY][eE][sS] | [yY])
+      sudo apt-get install qemu-guest-agent
+      break
+      ;;
+    [nN][oO] | [nN])
+      break
+      ;;
+    *) echo "Invalid option. Please try again." ;;
+    esac
+  done
+}
 setup_user() {
   user=$(whoami)
   if [ ! "${user}" = "root" ]; then
@@ -86,23 +102,23 @@ gpg_setup() {
   echo "Would you like to generate GPG keys? (1/2)"
   select gpg_answer in "Yes" "No"; do
     case $gpg_answer in
-    Yes)
+     [yY][eE][sS] | [yY])
       gpg --generate-key --batch qnlbnsl
       gpg --generate-key --batch immertec
       ;;
-    No) return ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
   echo "Would you like to export the generated GPG Key?"
   select gpg_exp_answer in "Yes" "No"; do
     case $gpg_exp_answer in
-    Yes)
+     [yY][eE][sS] | [yY])
       echo "Exporting qnlbnsl@gmail.com"
       gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
       echo "Exporting kunal@immertec.com"
       gpg --output ~/public-immertec.pgp --armor --export 'kunal@immertec.com'
       ;;
-    No) return ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
 }
@@ -110,20 +126,20 @@ gh_setup() {
   echo "Would you like to login to github?"
   select gh_login_answer in "Yes" "No"; do
     case $gh_login_answer in
-    Yes) gh auth login ;;
-    No) return ;;
+     [yY][eE][sS] | [yY]) gh auth login ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
   echo "Would you like add the GPG key to github?"
   select gpg_exp_answer in "Yes" "No"; do
     case $gpg_exp_answer in
-    Yes)
+     [yY][eE][sS] | [yY])
       gh gpg-key add ~/public-qnlbnsl.pgp
       gh gpg-key add ~/public-immertec.pgp
       rm ~/public-qnlbnsl.pgp
       rm ~/public-immertec.pgp
       ;;
-    No) return ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
 }
@@ -131,8 +147,8 @@ docker_setup() {
   echo "Would you like to install docker?"
   select answer in "Yes" "No"; do
     case $answer in
-    Yes) make docker ;;
-    No) return ;;
+     [yY][eE][sS] | [yY]) make docker ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
 }
@@ -140,12 +156,13 @@ golang_setup() {
   echo "Would you like to install golang?"
   select answer in "Yes" "No"; do
     case $answer in
-    Yes) make go ;;
-    No) return ;;
+     [yY][eE][sS] | [yY]) make go ;;
+    [nN][oO] | [nN]) return ;;
     esac
   done
 }
 
+setup_qemu_agent
 setup_user
 setup_locales
 setup_keyrings
