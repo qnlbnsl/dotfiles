@@ -102,7 +102,7 @@ gpg_setup() {
   echo "Would you like to generate GPG keys? (1/2)"
   select gpg_answer in "Yes" "No"; do
     case $gpg_answer in
-     [yY][eE][sS] | [yY])
+    [yY][eE][sS] | [yY])
       gpg --generate-key --batch qnlbnsl
       gpg --generate-key --batch immertec
       ;;
@@ -112,7 +112,7 @@ gpg_setup() {
   echo "Would you like to export the generated GPG Key?"
   select gpg_exp_answer in "Yes" "No"; do
     case $gpg_exp_answer in
-     [yY][eE][sS] | [yY])
+    [yY][eE][sS] | [yY])
       echo "Exporting qnlbnsl@gmail.com"
       gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
       echo "Exporting kunal@immertec.com"
@@ -126,14 +126,14 @@ gh_setup() {
   echo "Would you like to login to github?"
   select gh_login_answer in "Yes" "No"; do
     case $gh_login_answer in
-     [yY][eE][sS] | [yY]) gh auth login ;;
+    [yY][eE][sS] | [yY]) gh auth login ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
   echo "Would you like add the GPG key to github?"
   select gpg_exp_answer in "Yes" "No"; do
     case $gpg_exp_answer in
-     [yY][eE][sS] | [yY])
+    [yY][eE][sS] | [yY])
       gh gpg-key add ~/public-qnlbnsl.pgp
       gh gpg-key add ~/public-immertec.pgp
       rm ~/public-qnlbnsl.pgp
@@ -147,7 +147,7 @@ docker_setup() {
   echo "Would you like to install docker?"
   select answer in "Yes" "No"; do
     case $answer in
-     [yY][eE][sS] | [yY]) make docker ;;
+    [yY][eE][sS] | [yY]) make docker ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
@@ -156,7 +156,11 @@ golang_setup() {
   echo "Would you like to install golang?"
   select answer in "Yes" "No"; do
     case $answer in
-     [yY][eE][sS] | [yY]) make go ;;
+    [yY][eE][sS] | [yY])
+      make go
+      zsh -i -c go install github.com/owenthereal/ccat@latest
+      zsh -i -c go install github.com/creack/assumerole@latest
+      ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
@@ -190,8 +194,6 @@ golang_setup
 # Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "${user}"
 zsh -i -c zplug install
-zsh -i -c go install github.com/owenthereal/ccat@latest
-zsh -i -c go install github.com/creack/assumerole@latest
 
 # Helps in general... Especially when coding in react
 # Increasing max watchers to 65535
