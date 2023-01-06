@@ -6,4 +6,5 @@ fishd.*
 generated_completions
 get-docker.sh
 tmp
-
+shell/.gitconfig.immertec
+shell/.gitconfig.qnlbnsl
