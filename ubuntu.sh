@@ -9,6 +9,9 @@ if ! hash sudo 2>/dev/null; then
   apt-get update
   apt-get install -y sudo
 fi
+type -p curl >/dev/null || sudo apt-get install curl -y
+type -p git >/dev/null || sudo apt-get install git -y
+
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   # Remove enterprise repo from proxmox
@@ -16,6 +19,7 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   # Remove the no subscription notice
   sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
 fi
+
 setup_qemu_agent() {
   options=(Yes No)
   read -p "Should i install qemu-guest-agent" answer
@@ -179,8 +183,6 @@ setup_qemu_agent
 setup_user
 # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
 setup_locales
-# Next step needs curl.
-type -p curl >/dev/null || sudo apt-get install curl -y
 # Pulls keyrings for github cli and nala.
 # TODO: remove curl dependency
 setup_keyrings
