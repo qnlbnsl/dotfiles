@@ -242,3 +242,6 @@ $maxwatches = "fs.inotify.max_user_watches=524288"
 
 echo $maxfiles | sudo tee -a /etc/sysctl.conf
 echo $maxwatches | sudo tee -a /etc/sysctl.conf
+
+# last but not least we shall upgrade everything else.
+sudo nala upgrade -y
