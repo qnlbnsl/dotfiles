@@ -19,8 +19,6 @@ LINKS_SRCS    =	 .config 	\
                 .aspell.en.prepl    \
 		.editorconfig       \
                 .gitconfig          \
-                .gitconfig.immertec \
-                .gitconfig.qnlbnsl  \
                 .p10k.zsh 	    \
 		.tmux.conf          \
                 .Xresources         \
