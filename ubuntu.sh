@@ -139,12 +139,11 @@ gh_setup() {
    select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
-      gh auth login
+      gh auth login -s write:gpg_key
       echo "Would you like add the GPG key to github?"
        select answer in "${options[@]}"; do
         case $REPLY in
         [yY][eE][sS] | [yY])
-          gh auth refresh -s write:gpg_key
           gh gpg-key add ~/public-qnlbnsl.pgp
           gh gpg-key add ~/public-immertec.pgp
           rm ~/public-qnlbnsl.pgp
