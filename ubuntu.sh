@@ -149,7 +149,7 @@ golang_setup() {
 setup_user
 setup_locales
 setup_keyrings
-type -p nala >/dev/bull || setup_nala
+type -p nala >/dev/null || setup_nala
 type -p curl >/dev/null || sudo nala install curl -y
 sudo nala update
 sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh

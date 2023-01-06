@@ -10,7 +10,7 @@ else
 OS=darwin
 endif
 
-LINKS_SRCS    = .config 	    \
+LINKS_SRCS    =	 .config 	\
 		.oh-my-zsh 	    \
 		.ssh/config         \
 		.zplug  	    \
