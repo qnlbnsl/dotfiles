@@ -1,9 +1,7 @@
 [ -n "${ZPROF}" ] && zmodload zsh/zprof
 
 export TMUX_TZ=$(date +%Z)
-
 export COLORTERM=truecolor
-
 # User config.
 
 # Docker compose shortcuts in addition to the docker-compose oh-my-zsh plugin.
@@ -126,7 +124,6 @@ autoload -U +X bashcompinit && bashcompinit
 complete -o nospace -C ${HOME}/go/bin/terraform terraform
 complete -o nospace -C ${HOME}/go/bin/vault vault
 
-
 # If the ssh agent socket is not set or expired, reload it.
 if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
   rl
@@ -150,18 +147,6 @@ bindkey "^[l" down-case-word
 
 export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
 
-gnb () {
-  gcop red && git checkout -b $1 && git push -u origin $1
-}
-
-git-push () {
-  git commit -S -m $1 && git push
-}
-
-gcop () {
-    git checkout $1 && git pull
-  }
-
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
@@ -181,14 +166,12 @@ connectaws () {
   eval "$(assumerole -f env $1)"
 }
 
-alias reload="source ~/.zshrc"
-
 update-os () {
   if ! command -v nala &> /dev/null
   then
     sudo apt-get update && sudo apt-get upgrade -y
   else
-    printf '1 2 3' | sudo nala fetch -y
     sudo nala update && sudo nala upgrade -y
   fi
 }
+nala-fetch() {printf '1 2 3' | sudo nala fetch -y}
