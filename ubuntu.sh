@@ -113,10 +113,12 @@ gpg_setup() {
           gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
           echo "Exporting kunal@immertec.com"
           gpg --output ~/public-immertec.pgp --armor --export 'kunal@immertec.com'
+          break
           ;;
         [nN][oO] | [nN]) return ;;
         esac
       done
+      break;
       ;;
     [nN][oO] | [nN]) return ;;
     esac
@@ -147,10 +149,12 @@ gh_setup() {
           rm ~/public-qnlbnsl.pgp
           rm ~/public-immertec.pgp
           git_gpg_update
+          break
           ;;
         [nN][oO] | [nN]) return ;;
         esac
       done
+      break
       ;;
     [nN][oO] | [nN]) return ;;
     esac
@@ -162,7 +166,7 @@ docker_setup() {
   echo "Would you like to install docker?"
    select answer in "${options[@]}"; do
     case $REPLY in
-    [yY][eE][sS] | [yY]) make docker ;;
+    [yY][eE][sS] | [yY]) make docker; break ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
@@ -176,6 +180,7 @@ golang_setup() {
       make go
       zsh -i -c go install github.com/owenthereal/ccat@latest
       zsh -i -c go install github.com/creack/assumerole@latest
+      break
       ;;
     [nN][oO] | [nN]) return ;;
     esac
