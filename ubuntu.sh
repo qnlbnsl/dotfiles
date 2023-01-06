@@ -21,8 +21,9 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
 fi
 
 setup_qemu_agent() {
+  type -p qemu-guest-agent >/dev/null || return
   options=(Yes No)
-  read -p "Should i install qemu-guest-agent" answer
+  echo "Should i install qemu-guest-agent? "
   select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
@@ -216,7 +217,7 @@ gpg_setup
 gh_setup
 docker_setup
 golang_setup
-
+android_setup
 # Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "${user}"
 zsh -i -c zplug install
