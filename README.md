@@ -22,7 +22,7 @@ chmod +x ubuntu.sh
 Running `make`
 
 ```sh
-git clone https://github.com/creack/dotfiles ~/.dotfiles
+git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
 cd ~/.dotfiles
 make -j
 ```
@@ -32,16 +32,11 @@ Note that the Makefile manages:
 - go
 - oh-my-zsh
 - nvm
+- docker
+- zplug
+- powerlevel10k
 
 ## Configurations
-
-### Import ssh/gpg keys
-
-```sh
-github_user=qnlbnsl
-curl https://github.com/${github_user}.gpg | gpg --import
-curl https://github.com/${github_user}.keys >> ~/.ssh/authorized_keys
-```
 
 ## Linux Specific
 
@@ -64,10 +59,7 @@ echo "$user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-primary-user
 ### Install Docker
 
 ```sh
-# Docker itself.
-curl -fsSL https://get.docker.com | sh
-sudo groupadd docker
-sudo usermod -aG docker $(whoami)
+make docker
 ```
 
 ## OSX Specific
@@ -87,7 +79,7 @@ Note that Apple announced they will remove ruby from OSX by default. Will need t
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 ```
 
-### Install Docker
+### Install Docker Manually
 
 ```sh
 brew cask install virtualbox
@@ -154,44 +146,4 @@ go get golang.org/x/tools/cmd/...
 # Linter
 (cd ~/.dotfiles && echo "1.19.1" > versions/golangci-lint && make)
 golangci-lint --version
-```
-
-## Update Docker Compose
-
-```sh
-(cd ~/.dotfiles && echo "1.24.1" > versions/docker-compose && make)
-docker-compose --version
-```
-
-## Use node
-
-Loading nvm is slow (~1 to 2second), so it is wrapped in a function instead of being loaded with the shell.
-
-```sh
-loadnvm
-nvm install --lts
-node --version
-```
-
-## Elpa fail
-
-As of October 6th, 2019, elpa has been down for at least 2 weeks, preventing package installation from melpa.
-
-Self contain reproduction of the issue (and check if it is still an issue):
-
-```sh
-docker run -it --rm ubuntu:19.04 bash -c 'apt-get update && apt-get install -y ca-certificates emacs-nox && emacs --no-init-file --eval "(progn (package-initialize) (package-refresh-contents))"'
-```
-
-Temporaty fix:
-
-```sh
-mkdir -p ~/elpaclone && cd ~/elpaclone && curl -L https://elpa.gnu.org/packages/archive-contents | perl -pe 's/(^\(1|\n)//g' | perl -pe 's/\]\)/])\n/g' | perl -pe 's/^ *\(([a-z0-9A-Z-]*).*\[\(([0-9 ]*).*(single|tar).*/\1-\2.\3/g' | perl -pe 's/ /./g' | perl -pe 's/single/el/g' | perl -pe 's/\)//g' | xargs -I {} curl -L  -O https://elpa.gnu.org/packages/\{\} && curl -L -O https://elpa.gnu.org/packages/archive-contents
-```
-
-```lisp
-;; init-package.el
-
-(setq package-archives '(("gnu" . "~/elpaclone")
-                        ("melpa" . "https://melpa.org/packages/")))
 ```
