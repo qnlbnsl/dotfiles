@@ -9,6 +9,15 @@
 
 ## Dotfiles
 
+quickstart
+
+```sh
+git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
+cd ~/.dotfiles
+chmod +x ubuntu.sh
+./ubuntu.sh
+```
+
 Running `make`
 
 ```sh

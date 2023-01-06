@@ -21,7 +21,6 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
 fi
 
 setup_qemu_agent() {
-  type -p qemu-guest-agent >/dev/null || return
   options=(Yes No)
   echo "Should i install qemu-guest-agent? "
   select answer in "${options[@]}"; do
