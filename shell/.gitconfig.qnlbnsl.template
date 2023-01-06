@@ -1,0 +1,17 @@
+# -*- mode: conf -*-
+
+[commit]
+  gpgsign = true
+
+[alias]
+  commit = commit -s -S
+  ci     = commit
+  t      = tag -s
+
+[github]
+  user = qnlbnsl
+
+[user]
+  email      = git+qnlbnsl@gmail.com
+  name       = Kunal Bansal
+

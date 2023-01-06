@@ -94,7 +94,7 @@ nvm_setup() {
   nvm install 18
 }
 gpg_setup() {
-  echo "Would you like to generate GPG keys? (1/2)"
+  echo "Would you like to generate GPG keys?"
   select gpg_answer in "Yes" "No"; do
     case $gpg_answer in
     [yY][eE][sS] | [yY])
@@ -117,6 +117,14 @@ gpg_setup() {
     esac
   done
 }
+git_gpg_update() {
+  key1=$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2)
+  cp shell/.gitconfig.qnlbnsl.template shell/.gitconfig.qnlbnsl
+  echo "  signingKey = $key1" | tee -a .gitconfig.qnlbnsl
+  key2=$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2)
+  cp shell/.gitconfig.immertec.template shell/.gitconfig.immertec
+  echo "  signingKey = $key2" | tee -a .gitconfig.immertec
+}
 gh_setup() {
   echo "Would you like to login to github?"
   select gh_login_answer in "Yes" "No"; do
@@ -131,6 +139,7 @@ gh_setup() {
           gh gpg-key add ~/public-immertec.pgp
           rm ~/public-qnlbnsl.pgp
           rm ~/public-immertec.pgp
+          git_gpg_update
           ;;
         [nN][oO] | [nN]) return ;;
         esac

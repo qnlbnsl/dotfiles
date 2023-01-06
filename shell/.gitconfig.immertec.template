@@ -1,0 +1,12 @@
+# -*- mode: conf -*-
+
+[commit]
+  gpgsign = true
+
+[alias]
+  commit = commit -s -S
+  t      = tag -s
+
+[user]
+  email      = kunal@immertec.com
+  name       = Kunal Bansal
