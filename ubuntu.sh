@@ -194,6 +194,8 @@ setup_locales
 # Pulls keyrings for github cli and nala.
 # TODO: remove curl dependency
 setup_keyrings
+# Sync time
+sudo hwclock --hctosys
 # Installs nala if not present
 type -p nala >/dev/null || setup_nala
 sudo nala update
