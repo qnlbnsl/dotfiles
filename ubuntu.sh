@@ -6,6 +6,7 @@ user=$(whoami)
 
 # Install sudo if needed
 if ! hash sudo 2>/dev/null; then
+  apt-get update
   apt-get install -y sudo
 fi
 # Proxmox Specific
@@ -80,16 +81,10 @@ setup_keyrings() {
   sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
 }
-get_nala_legacy() {
-  return $true
-}
 setup_nala() {
   sudo apt-get update
-  if [[get_nala_legacy]]; then
-    sudo apt install nala-legacy -y
-  else
-    sudo apt-get install nala -y
-  fi
+  sudo apt-get install nala -y
+  type -p nala >/dev/null || sudo apt-get install nala-legacy
   printf '1 2 3' | sudo nala fetch -y
 }
 nvm_setup() {
@@ -105,18 +100,18 @@ gpg_setup() {
     [yY][eE][sS] | [yY])
       gpg --generate-key --batch qnlbnsl
       gpg --generate-key --batch immertec
-      ;;
-    [nN][oO] | [nN]) return ;;
-    esac
-  done
-  echo "Would you like to export the generated GPG Key?"
-  select gpg_exp_answer in "Yes" "No"; do
-    case $gpg_exp_answer in
-    [yY][eE][sS] | [yY])
-      echo "Exporting qnlbnsl@gmail.com"
-      gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
-      echo "Exporting kunal@immertec.com"
-      gpg --output ~/public-immertec.pgp --armor --export 'kunal@immertec.com'
+      echo "Would you like to export the generated GPG Key?"
+      select gpg_exp_answer in "Yes" "No"; do
+        case $gpg_exp_answer in
+        [yY][eE][sS] | [yY])
+          echo "Exporting qnlbnsl@gmail.com"
+          gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'
+          echo "Exporting kunal@immertec.com"
+          gpg --output ~/public-immertec.pgp --armor --export 'kunal@immertec.com'
+          ;;
+        [nN][oO] | [nN]) return ;;
+        esac
+      done
       ;;
     [nN][oO] | [nN]) return ;;
     esac
@@ -126,22 +121,25 @@ gh_setup() {
   echo "Would you like to login to github?"
   select gh_login_answer in "Yes" "No"; do
     case $gh_login_answer in
-    [yY][eE][sS] | [yY]) gh auth login ;;
-    [nN][oO] | [nN]) return ;;
-    esac
-  done
-  echo "Would you like add the GPG key to github?"
-  select gpg_exp_answer in "Yes" "No"; do
-    case $gpg_exp_answer in
     [yY][eE][sS] | [yY])
-      gh gpg-key add ~/public-qnlbnsl.pgp
-      gh gpg-key add ~/public-immertec.pgp
-      rm ~/public-qnlbnsl.pgp
-      rm ~/public-immertec.pgp
+      gh auth login
+      echo "Would you like add the GPG key to github?"
+      select gpg_exp_answer in "Yes" "No"; do
+        case $gpg_exp_answer in
+        [yY][eE][sS] | [yY])
+          gh gpg-key add ~/public-qnlbnsl.pgp
+          gh gpg-key add ~/public-immertec.pgp
+          rm ~/public-qnlbnsl.pgp
+          rm ~/public-immertec.pgp
+          ;;
+        [nN][oO] | [nN]) return ;;
+        esac
+      done
       ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
+
 }
 docker_setup() {
   echo "Would you like to install docker?"
@@ -166,16 +164,25 @@ golang_setup() {
   done
 }
 
+# Normally I am on a VM soooo yes, this si the first step :).
 setup_qemu_agent
+# Setup the user. normally VMs and CTs/LXCs give direct root access so this speeds up user creation.
 setup_user
+# Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
 setup_locales
+# Next step needs curl.
+type -p curl >/dev/null || sudo apt-get install curl -y
+# Pulls keyrings for github cli and nala.
+# TODO: remove curl dependency
 setup_keyrings
+# Installs nala if not present
 type -p nala >/dev/null || setup_nala
-type -p curl >/dev/null || sudo nala install curl -y
 sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh
+sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc
 
+# Import my SSH keys
 ssh-import-id-gh qnlbnsl
+# Install Tailscale
 curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 pip3 install powerline-status
@@ -184,7 +191,7 @@ pip3 install yq
 # Install my settings
 make
 
-# Finish remaining setup
+# Finish devtools setup
 nvm_setup
 gpg_setup
 gh_setup
