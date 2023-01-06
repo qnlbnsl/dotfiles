@@ -176,6 +176,14 @@ golang_setup() {
     esac
   done
 }
+android_setup(){
+  mkdir ~/tools
+  mkdir ~/tools/android
+  mkdir ~/tools/android/android-sdk
+  cp -r cmdline-tools ~/tools/android/android-sdk
+  sdkmanager "platform-tools" "platforms;android-29"
+  sdkmanager "build-tools;32.0.0"
+}
 
 # Normally I am on a VM soooo yes, this si the first step :).
 setup_qemu_agent
@@ -189,7 +197,7 @@ setup_keyrings
 # Installs nala if not present
 type -p nala >/dev/null || setup_nala
 sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc
+sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
 
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
