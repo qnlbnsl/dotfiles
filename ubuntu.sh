@@ -199,7 +199,7 @@ android_setup() {
   sdkmanager "build-tools;32.0.0"
 }
 
-if [[$proxmox = $true]]; then
+if $proxmox; then
   type -p nala >/dev/null || setup_nala
   sudo nala update
   sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
