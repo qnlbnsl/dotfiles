@@ -259,7 +259,7 @@ fi
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
 # Install plugins and utilities
-sudo chsh -s /usr/bin/zsh "${user}"
+sudo chsh -s /usr/bin/zsh "$(whoami)"
 zsh -i -c zplug install
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
