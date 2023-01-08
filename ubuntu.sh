@@ -209,14 +209,15 @@ update_fs() {
   echo $maxfiles | sudo tee -a /etc/sysctl.conf
   echo $maxwatches | sudo tee -a /etc/sysctl.conf
 }
+  # Pulls keyrings for github cli and nala.
+  # TODO: remove curl dependency
+  setup_keyrings
 
 if $proxmox; then
   echo "Proxmox Nala Install"
   type -p nala >/dev/null || setup_nala
   sudo nala update
   sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
-  # Import my SSH keys
-  ssh-import-id-gh qnlbnsl
   make install
   # Install plugins and utilities
   sudo chsh -s /usr/bin/zsh "${user}"
@@ -228,9 +229,6 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  # Pulls keyrings for github cli and nala.
-  # TODO: remove curl dependency
-  setup_keyrings
   # Sync time
   sudo hwclock --hctosys
   # Installs nala if not present
@@ -238,8 +236,6 @@ else
   sudo nala update
   sudo nala install -y tmux most mosh zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
 
-  # Import my SSH keys
-  ssh-import-id-gh qnlbnsl
   # Install Tailscale
   curl -fsSL https://tailscale.com/install.sh | sudo sh
 
@@ -258,6 +254,8 @@ else
   android_setup
   update_fs
 fi
+# Import my SSH keys
+ssh-import-id-gh qnlbnsl
 # Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "${user}"
 zsh -i -c zplug install
