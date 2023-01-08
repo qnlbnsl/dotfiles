@@ -89,8 +89,10 @@ setup_keyrings() {
 }
 setup_nala() {
   sudo apt-get update
-  sudo apt-get install nala -y
-  type -p nala >/dev/null || sudo apt-get install nala-legacy
+  if sudo apt-get --simulate install nala; then
+    sudo apt-get install nala -y
+  else
+    sudo apt-get install nala-legacy -y
   printf '1 2 3' | sudo nala fetch -y
 }
 nvm_setup() {
@@ -209,10 +211,11 @@ update_fs() {
   echo $maxfiles | sudo tee -a /etc/sysctl.conf
   echo $maxwatches | sudo tee -a /etc/sysctl.conf
 }
-  # Pulls keyrings for github cli and nala.
-  # TODO: remove curl dependency
-  setup_keyrings
-
+# Pulls keyrings for github cli and nala.
+# TODO: remove curl dependency
+setup_keyrings
+# Sync time
+sudo hwclock --hctosys
 if $proxmox; then
   echo "Proxmox Nala Install"
   type -p nala >/dev/null || setup_nala
@@ -229,8 +232,6 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  # Sync time
-  sudo hwclock --hctosys
   # Installs nala if not present
   type -p nala >/dev/null || setup_nala
   sudo nala update
