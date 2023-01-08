@@ -11,9 +11,10 @@ if ! hash sudo 2>/dev/null; then
 fi
 type -p curl >/dev/null || sudo apt-get install curl -y
 type -p git >/dev/null || sudo apt-get install git -y
-
+proxmox=$false
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+  proxmox=$true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
   # Remove the no subscription notice
@@ -118,7 +119,7 @@ gpg_setup() {
         [nN][oO] | [nN]) return ;;
         esac
       done
-      break;
+      break
       ;;
     [nN][oO] | [nN]) return ;;
     esac
@@ -136,12 +137,12 @@ git_gpg_update() {
 gh_setup() {
   options=(Yes No)
   echo "Would you like to login to github?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       gh auth login -s write:gpg_key
       echo "Would you like add the GPG key to github?"
-       select answer in "${options[@]}"; do
+      select answer in "${options[@]}"; do
         case $REPLY in
         [yY][eE][sS] | [yY])
           gh gpg-key add ~/public-qnlbnsl.pgp
@@ -164,9 +165,12 @@ gh_setup() {
 docker_setup() {
   options=(Yes No)
   echo "Would you like to install docker?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
-    [yY][eE][sS] | [yY]) make docker; break ;;
+    [yY][eE][sS] | [yY])
+      make docker
+      break
+      ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
@@ -174,7 +178,7 @@ docker_setup() {
 golang_setup() {
   options=(Yes No)
   echo "Would you like to install golang?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       make go
@@ -195,53 +199,63 @@ android_setup() {
   sdkmanager "build-tools;32.0.0"
 }
 
-# Normally I am on a VM soooo yes, this si the first step :).
-setup_qemu_agent
-# Setup the user. normally VMs and CTs/LXCs give direct root access so this speeds up user creation.
-setup_user
-# Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
-setup_locales
-# Pulls keyrings for github cli and nala.
-# TODO: remove curl dependency
-setup_keyrings
-# Sync time
-sudo hwclock --hctosys
-# Installs nala if not present
-type -p nala >/dev/null || setup_nala
-sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
+if [[$proxmox = $true]]; then
+  type -p nala >/dev/null || setup_nala
+  sudo nala update
+  sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
+  # Import my SSH keys
+  ssh-import-id-gh qnlbnsl
+  make install
+  # Install plugins and utilities
+  sudo chsh -s /usr/bin/zsh "${user}"
+  zsh -i -c zplug install
+else
+  # Normally I am on a VM soooo yes, this si the first step :).
+  setup_qemu_agent
+  # Setup the user. normally VMs and CTs/LXCs give direct root access so this speeds up user creation.
+  setup_user
+  # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
+  setup_locales
+  # Pulls keyrings for github cli and nala.
+  # TODO: remove curl dependency
+  setup_keyrings
+  # Sync time
+  sudo hwclock --hctosys
+  # Installs nala if not present
+  type -p nala >/dev/null || setup_nala
+  sudo nala update
+  sudo nala install -y tmux most mosh zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
 
-# Import my SSH keys
-ssh-import-id-gh qnlbnsl
-# Install Tailscale
-curl -fsSL https://tailscale.com/install.sh | sudo sh
+  # Import my SSH keys
+  ssh-import-id-gh qnlbnsl
+  # Install Tailscale
+  curl -fsSL https://tailscale.com/install.sh | sudo sh
 
-pip3 install powerline-status
-pip3 install yq
+  pip3 install powerline-status
+  pip3 install yq
 
-# Install my settings
-make
+  # Install my settings
+  make
 
-# Finish devtools setup
-nvm_setup
-gpg_setup
-gh_setup
-docker_setup
-golang_setup
-android_setup
+  # Finish devtools setup
+  nvm_setup
+  gpg_setup
+  gh_setup
+  docker_setup
+  golang_setup
+  android_setup
+
+  # Helps in general... Especially when coding in react
+  # Increasing max watchers to 65535
+  $maxfiles = "fs.file-max = 65535"
+  # Increasing max watchers. Each file watch consumes up to 1080 bytes.
+  # 524288 will be able to use up to 540MB
+  $maxwatches = "fs.inotify.max_user_watches=524288"
+  echo $maxfiles | sudo tee -a /etc/sysctl.conf
+  echo $maxwatches | sudo tee -a /etc/sysctl.conf
+fi
 # Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "${user}"
 zsh -i -c zplug install
-
-# Helps in general... Especially when coding in react
-# Increasing max watchers to 65535
-$maxfiles = "fs.file-max = 65535"
-# Increasing max watchers. Each file watch consumes up to 1080 bytes.
-# 524288 will be able to use up to 540MB
-$maxwatches = "fs.inotify.max_user_watches=524288"
-
-echo $maxfiles | sudo tee -a /etc/sysctl.conf
-echo $maxwatches | sudo tee -a /etc/sysctl.conf
-
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
