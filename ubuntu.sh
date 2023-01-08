@@ -14,6 +14,7 @@ type -p git >/dev/null || sudo apt-get install git -y
 proxmox=$false
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+  echo "We are using Proxmox"
   proxmox=$true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
@@ -195,11 +196,22 @@ android_setup() {
   mkdir ~/tools/android
   mkdir ~/tools/android/android-sdk
   cp -r cmdline-tools ~/tools/android/android-sdk
-  sdkmanager "platform-tools" "platforms;android-29"
-  sdkmanager "build-tools;32.0.0"
+  # sdkmanager "platform-tools" "platforms;android-29"
+  # sdkmanager "build-tools;32.0.0"
+}
+update_fs() {
+  # Helps in general... Especially when coding in react
+  # Increasing max watchers to 65535
+  $maxfiles = "fs.file-max = 65535"
+  # Increasing max watchers. Each file watch consumes up to 1080 bytes.
+  # 524288 will be able to use up to 540MB
+  $maxwatches = "fs.inotify.max_user_watches=524288"
+  echo $maxfiles | sudo tee -a /etc/sysctl.conf
+  echo $maxwatches | sudo tee -a /etc/sysctl.conf
 }
 
 if $proxmox; then
+  echo "Proxmox Nala Install"
   type -p nala >/dev/null || setup_nala
   sudo nala update
   sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
@@ -244,15 +256,7 @@ else
   docker_setup
   golang_setup
   android_setup
-
-  # Helps in general... Especially when coding in react
-  # Increasing max watchers to 65535
-  $maxfiles = "fs.file-max = 65535"
-  # Increasing max watchers. Each file watch consumes up to 1080 bytes.
-  # 524288 will be able to use up to 540MB
-  $maxwatches = "fs.inotify.max_user_watches=524288"
-  echo $maxfiles | sudo tee -a /etc/sysctl.conf
-  echo $maxwatches | sudo tee -a /etc/sysctl.conf
+  update_fs
 fi
 # Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "${user}"
