@@ -93,6 +93,7 @@ setup_nala() {
     sudo apt-get install nala -y
   else
     sudo apt-get install nala-legacy -y
+  fi
   printf '1 2 3' | sudo nala fetch -y
 }
 nvm_setup() {
