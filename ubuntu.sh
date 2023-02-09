@@ -11,9 +11,11 @@ if ! hash sudo 2>/dev/null; then
 fi
 type -p curl >/dev/null || sudo apt-get install curl -y
 type -p git >/dev/null || sudo apt-get install git -y
-
+proxmox=$false
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+  echo "We are using Proxmox"
+  proxmox=$true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
   # Remove the no subscription notice
@@ -87,8 +89,11 @@ setup_keyrings() {
 }
 setup_nala() {
   sudo apt-get update
-  sudo apt-get install nala -y
-  type -p nala >/dev/null || sudo apt-get install nala-legacy
+  if sudo apt-get --simulate install nala; then
+    sudo apt-get install nala -y
+  else
+    sudo apt-get install nala-legacy -y
+  fi
   printf '1 2 3' | sudo nala fetch -y
 }
 nvm_setup() {
@@ -118,7 +123,7 @@ gpg_setup() {
         [nN][oO] | [nN]) return ;;
         esac
       done
-      break;
+      break
       ;;
     [nN][oO] | [nN]) return ;;
     esac
@@ -136,12 +141,12 @@ git_gpg_update() {
 gh_setup() {
   options=(Yes No)
   echo "Would you like to login to github?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       gh auth login -s write:gpg_key
       echo "Would you like add the GPG key to github?"
-       select answer in "${options[@]}"; do
+      select answer in "${options[@]}"; do
         case $REPLY in
         [yY][eE][sS] | [yY])
           gh gpg-key add ~/public-qnlbnsl.pgp
@@ -164,9 +169,12 @@ gh_setup() {
 docker_setup() {
   options=(Yes No)
   echo "Would you like to install docker?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
-    [yY][eE][sS] | [yY]) make docker; break ;;
+    [yY][eE][sS] | [yY])
+      make docker
+      break
+      ;;
     [nN][oO] | [nN]) return ;;
     esac
   done
@@ -174,7 +182,7 @@ docker_setup() {
 golang_setup() {
   options=(Yes No)
   echo "Would you like to install golang?"
-   select answer in "${options[@]}"; do
+  select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       make go
@@ -191,57 +199,67 @@ android_setup() {
   mkdir ~/tools/android
   mkdir ~/tools/android/android-sdk
   cp -r cmdline-tools ~/tools/android/android-sdk
-  sdkmanager "platform-tools" "platforms;android-29"
-  sdkmanager "build-tools;32.0.0"
+  # sdkmanager "platform-tools" "platforms;android-29"
+  # sdkmanager "build-tools;32.0.0"
 }
-
-# Normally I am on a VM soooo yes, this si the first step :).
-setup_qemu_agent
-# Setup the user. normally VMs and CTs/LXCs give direct root access so this speeds up user creation.
-setup_user
-# Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
-setup_locales
+update_fs() {
+  # Helps in general... Especially when coding in react
+  # Increasing max watchers to 65535
+  $maxfiles = "fs.file-max = 65535"
+  # Increasing max watchers. Each file watch consumes up to 1080 bytes.
+  # 524288 will be able to use up to 540MB
+  $maxwatches = "fs.inotify.max_user_watches=524288"
+  echo $maxfiles | sudo tee -a /etc/sysctl.conf
+  echo $maxwatches | sudo tee -a /etc/sysctl.conf
+}
 # Pulls keyrings for github cli and nala.
 # TODO: remove curl dependency
 setup_keyrings
 # Sync time
 sudo hwclock --hctosys
-# Installs nala if not present
-type -p nala >/dev/null || setup_nala
-sudo nala update
-sudo nala install -y tmux most zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
+if $proxmox; then
+  echo "Proxmox Nala Install"
+  type -p nala >/dev/null || setup_nala
+  sudo nala update
+  sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
+  make install
+  # Install plugins and utilities
+  sudo chsh -s /usr/bin/zsh "${user}"
+  zsh -i -c zplug install
+else
+  # Normally I am on a VM soooo yes, this si the first step :).
+  setup_qemu_agent
+  # Setup the user. normally VMs and CTs/LXCs give direct root access so this speeds up user creation.
+  setup_user
+  # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
+  setup_locales
+  # Installs nala if not present
+  type -p nala >/dev/null || setup_nala
+  sudo nala update
+  sudo nala install -y tmux most mosh zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
 
+  # Install Tailscale
+  curl -fsSL https://tailscale.com/install.sh | sudo sh
+
+  pip3 install powerline-status
+  pip3 install yq
+
+  # Install my settings
+  make
+
+  # Finish devtools setup
+  nvm_setup
+  gpg_setup
+  gh_setup
+  docker_setup
+  golang_setup
+  android_setup
+  update_fs
+fi
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
-# Install Tailscale
-curl -fsSL https://tailscale.com/install.sh | sudo sh
-
-pip3 install powerline-status
-pip3 install yq
-
-# Install my settings
-make
-
-# Finish devtools setup
-nvm_setup
-gpg_setup
-gh_setup
-docker_setup
-golang_setup
-android_setup
 # Install plugins and utilities
-sudo chsh -s /usr/bin/zsh "${user}"
+sudo chsh -s /usr/bin/zsh "$(whoami)"
 zsh -i -c zplug install
-
-# Helps in general... Especially when coding in react
-# Increasing max watchers to 65535
-$maxfiles = "fs.file-max = 65535"
-# Increasing max watchers. Each file watch consumes up to 1080 bytes.
-# 524288 will be able to use up to 540MB
-$maxwatches = "fs.inotify.max_user_watches=524288"
-
-echo $maxfiles | sudo tee -a /etc/sysctl.conf
-echo $maxwatches | sudo tee -a /etc/sysctl.conf
-
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
