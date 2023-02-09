@@ -175,3 +175,5 @@ update-os () {
   fi
 }
 nala-fetch() {printf '1 2 3' | sudo nala fetch -y}
+
+alias packer="docker run --rm -it -u $(id -u):$(id -g) -v $(pwd):$(pwd) -w $(pwd) -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e PKR_VAR_env hashicorp/packer:light-1.8.5"
