@@ -232,7 +232,7 @@ else
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
 
-  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh uuidmap
+  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
 
   # Install Tailscale
   curl -fsSL https://tailscale.com/install.sh | sudo sh
