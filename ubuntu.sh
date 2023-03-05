@@ -217,15 +217,12 @@ update_fs() {
 setup_keyrings
 # Sync time
 sudo hwclock --hctosys
-if [ -z "$proxmox" ] ; then
-  echo "Proxmox Nala Install"
-  type -p nala >/dev/null || setup_nala
-  sudo nala update
-  sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
-  make install
-  # Install plugins and utilities
-  sudo chsh -s /usr/bin/zsh "${user}"
-  zsh -i -c zplug install
+type -p nala >/dev/null || setup_nala
+sudo nala update
+sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
+make install
+if [ $proxmox ] ; then
+  echo "All Done for proxmox"
 else
   # Normally I am on a VM soooo yes, this si the first step :).
   setup_qemu_agent
@@ -233,19 +230,14 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  # Installs nala if not present
-  type -p nala >/dev/null || setup_nala
-  sudo nala update
-  sudo nala install -y tmux most mosh zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
+
+  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh uuidmap
 
   # Install Tailscale
   curl -fsSL https://tailscale.com/install.sh | sudo sh
 
   pip3 install powerline-status
   pip3 install yq
-
-  # Install my settings
-  make
 
   # Finish devtools setup
   nvm_setup
