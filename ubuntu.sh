@@ -222,12 +222,9 @@ setup_keyrings
 type -p nala >/dev/null || setup_nala
 sudo nala update
 sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
-zsh -i -c "make install"
+make install
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
-# Install plugins and utilities
-sudo chsh -s /usr/bin/zsh "$(whoami)"
-zsh -i -c "zplug install"
 
 if [ $proxmox ] ; then
   echo "All Done for proxmox"
@@ -253,6 +250,6 @@ else
   android_setup
   update_fs
 fi
-
+sudo chsh -s /usr/bin/zsh "$(whoami)"
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
