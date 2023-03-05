@@ -15,6 +15,8 @@ type -p git >/dev/null || sudo apt-get install git -y
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "We are using Proxmox"
+  # Sync time
+  sudo hwclock --hctosys
   proxmox=true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
@@ -47,7 +49,7 @@ setup_user() {
     options=(Yes No)
     echo "script is running as root.... please run it as a non root user"
     read -p "Please enter user to make: " username
-    $prompt="Is this the correct username:"
+    prompt="Is this the correct username:"
     PS3="$prompt $username: "
     select answer in "${options[@]}"; do
       case $REPLY in
@@ -215,8 +217,7 @@ update_fs() {
 # Pulls keyrings for github cli and nala.
 # TODO: remove curl dependency
 setup_keyrings
-# Sync time
-sudo hwclock --hctosys
+
 type -p nala >/dev/null || setup_nala
 sudo nala update
 sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
