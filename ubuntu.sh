@@ -66,6 +66,7 @@ setup_user() {
       *) echo "Invalid option. Please try again." ;;
       esac
     done
+    PS3=""
     echo "adding ${user} to sudoer file. please run this script again"
     echo "${user} ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-${username}-root"
   fi
@@ -221,7 +222,13 @@ setup_keyrings
 type -p nala >/dev/null || setup_nala
 sudo nala update
 sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
-make install
+zsh -i -c "make install"
+# Import my SSH keys
+ssh-import-id-gh qnlbnsl
+# Install plugins and utilities
+sudo chsh -s /usr/bin/zsh "$(whoami)"
+zsh -i -c "zplug install"
+
 if [ $proxmox ] ; then
   echo "All Done for proxmox"
 else
@@ -231,14 +238,11 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-
   sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
-
   # Install Tailscale
   curl -fsSL https://tailscale.com/install.sh | sudo sh
 
-  pip3 install powerline-status
-  pip3 install yq
+  zsh -i -c "pip3 install powerline-status yq"
 
   # Finish devtools setup
   nvm_setup
@@ -249,10 +253,6 @@ else
   android_setup
   update_fs
 fi
-# Import my SSH keys
-ssh-import-id-gh qnlbnsl
-# Install plugins and utilities
-sudo chsh -s /usr/bin/zsh "$(whoami)"
-zsh -i -c zplug install
+
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
