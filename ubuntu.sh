@@ -11,11 +11,11 @@ if ! hash sudo 2>/dev/null; then
 fi
 type -p curl >/dev/null || sudo apt-get install curl -y
 type -p git >/dev/null || sudo apt-get install git -y
-proxmox=$false
+
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "We are using Proxmox"
-  proxmox=$true
+  proxmox=true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
   # Remove the no subscription notice
@@ -217,7 +217,7 @@ update_fs() {
 setup_keyrings
 # Sync time
 sudo hwclock --hctosys
-if $proxmox; then
+if [ -z "$proxmox" ] ; then
   echo "Proxmox Nala Install"
   type -p nala >/dev/null || setup_nala
   sudo nala update
