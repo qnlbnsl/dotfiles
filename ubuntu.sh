@@ -197,14 +197,14 @@ golang_setup() {
     esac
   done
 }
-android_setup() {
-  mkdir ~/tools
-  mkdir ~/tools/android
-  mkdir ~/tools/android/android-sdk
-  cp -r cmdline-tools ~/tools/android/android-sdk
-  # sdkmanager "platform-tools" "platforms;android-29"
-  # sdkmanager "build-tools;32.0.0"
-}
+# android_setup() {
+#   mkdir ~/tools
+#   mkdir ~/tools/android
+#   mkdir ~/tools/android/android-sdk
+#   cp -r cmdline-tools ~/tools/android/android-sdk
+#   # sdkmanager "platform-tools" "platforms;android-29"
+#   # sdkmanager "build-tools;32.0.0"
+# }
 update_fs() {
   # Helps in general... Especially when coding in react
   # Increasing max watchers to 65535
@@ -247,7 +247,7 @@ else
   gh_setup
   docker_setup
   golang_setup
-  android_setup
+  # android_setup
   update_fs
 fi
 sudo chsh -s /usr/bin/zsh "$(whoami)"
