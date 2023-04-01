@@ -15,6 +15,8 @@ type -p git >/dev/null || sudo apt-get install git -y
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "We are using Proxmox"
+  # Sync time
+  sudo hwclock --hctosys
   proxmox=true
   # Remove enterprise repo from proxmox
   echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
@@ -47,7 +49,7 @@ setup_user() {
     options=(Yes No)
     echo "script is running as root.... please run it as a non root user"
     read -p "Please enter user to make: " username
-    $prompt="Is this the correct username:"
+    prompt="Is this the correct username:"
     PS3="$prompt $username: "
     select answer in "${options[@]}"; do
       case $REPLY in
@@ -64,6 +66,7 @@ setup_user() {
       *) echo "Invalid option. Please try again." ;;
       esac
     done
+    PS3=""
     echo "adding ${user} to sudoer file. please run this script again"
     echo "${user} ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-${username}-root"
   fi
@@ -194,14 +197,14 @@ golang_setup() {
     esac
   done
 }
-android_setup() {
-  mkdir ~/tools
-  mkdir ~/tools/android
-  mkdir ~/tools/android/android-sdk
-  cp -r cmdline-tools ~/tools/android/android-sdk
-  # sdkmanager "platform-tools" "platforms;android-29"
-  # sdkmanager "build-tools;32.0.0"
-}
+# android_setup() {
+#   mkdir ~/tools
+#   mkdir ~/tools/android
+#   mkdir ~/tools/android/android-sdk
+#   cp -r cmdline-tools ~/tools/android/android-sdk
+#   # sdkmanager "platform-tools" "platforms;android-29"
+#   # sdkmanager "build-tools;32.0.0"
+# }
 update_fs() {
   # Helps in general... Especially when coding in react
   # Increasing max watchers to 65535
@@ -215,17 +218,16 @@ update_fs() {
 # Pulls keyrings for github cli and nala.
 # TODO: remove curl dependency
 setup_keyrings
-# Sync time
-sudo hwclock --hctosys
-if [ -z "$proxmox" ] ; then
-  echo "Proxmox Nala Install"
-  type -p nala >/dev/null || setup_nala
-  sudo nala update
-  sudo nala install -y tmux mosh zsh unzip gzip ssh-import-id gcc build-essential
-  make install
-  # Install plugins and utilities
-  sudo chsh -s /usr/bin/zsh "${user}"
-  zsh -i -c zplug install
+
+type -p nala >/dev/null || setup_nala
+sudo nala update
+sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
+make install
+# Import my SSH keys
+ssh-import-id-gh qnlbnsl
+
+if [ $proxmox ] ; then
+  echo "All Done for proxmox"
 else
   # Normally I am on a VM soooo yes, this si the first step :).
   setup_qemu_agent
@@ -233,19 +235,11 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  # Installs nala if not present
-  type -p nala >/dev/null || setup_nala
-  sudo nala update
-  sudo nala install -y tmux most mosh zsh watch htop build-essential mosh unzip python3-pip rsync git-lfs jq ssh-import-id gh gcc openjdk-11-jdk
-
+  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
   # Install Tailscale
   curl -fsSL https://tailscale.com/install.sh | sudo sh
 
-  pip3 install powerline-status
-  pip3 install yq
-
-  # Install my settings
-  make
+  zsh -i -c "pip3 install powerline-status yq"
 
   # Finish devtools setup
   nvm_setup
@@ -253,13 +247,9 @@ else
   gh_setup
   docker_setup
   golang_setup
-  android_setup
+  # android_setup
   update_fs
 fi
-# Import my SSH keys
-ssh-import-id-gh qnlbnsl
-# Install plugins and utilities
 sudo chsh -s /usr/bin/zsh "$(whoami)"
-zsh -i -c zplug install
 # last but not least we shall upgrade everything else.
 sudo nala upgrade -y
