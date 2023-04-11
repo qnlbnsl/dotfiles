@@ -135,11 +135,11 @@ gpg_setup() {
 git_gpg_update() {
   key1=$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2)
   cp shell/.gitconfig.qnlbnsl.template shell/.gitconfig.qnlbnsl
-  echo "  signingKey = $key1" | tee -a .gitconfig.qnlbnsl
+  echo "  signingKey = $key1" | tee -a shell/.gitconfig.qnlbnsl
   make gitsetup
   key2=$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2)
   cp shell/.gitconfig.immertec.template shell/.gitconfig.immertec
-  echo "  signingKey = $key2" | tee -a .gitconfig.immertec
+  echo "  signingKey = $key2" | tee -a shell/.gitconfig.immertec
 }
 gh_setup() {
   options=(Yes No)
@@ -189,8 +189,8 @@ golang_setup() {
     case $REPLY in
     [yY][eE][sS] | [yY])
       make go
-      zsh -i -c go install github.com/owenthereal/ccat@latest
-      zsh -i -c go install github.com/creack/assumerole@latest
+      zsh -i -c "go install github.com/owenthereal/ccat@latest"
+      zsh -i -c "go install github.com/creack/assumerole@latest"
       break
       ;;
     [nN][oO] | [nN]) return ;;
@@ -237,7 +237,7 @@ else
   setup_locales
   sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
   # Install Tailscale
-  curl -fsSL https://tailscale.com/install.sh | sudo sh
+  type -p tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sudo sh
 
   zsh -i -c "pip3 install powerline-status yq"
 
