@@ -124,10 +124,7 @@ autoload -U +X bashcompinit && bashcompinit
 complete -o nospace -C ${HOME}/go/bin/terraform terraform
 complete -o nospace -C ${HOME}/go/bin/vault vault
 
-# If the ssh agent socket is not set or expired, reload it.
-if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-  rl
-fi
+
 
 # Putty bindings for meta left/right
 bindkey '\e\eOD' backward-word
@@ -144,6 +141,11 @@ bindkey "^[l" down-case-word
 [ -f ~/.zshrc_priv_config ] && source ~/.zshrc_priv_config
 
 [ -n "${ZPROF}" ] && zprof
+
+# If the ssh agent socket is not set or expired, reload it.
+if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+  rl
+fi
 
 export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
 
@@ -176,4 +178,4 @@ update-os () {
 }
 nala-fetch() {printf '1 2 3' | sudo nala fetch -y}
 
-alias packer="docker run --rm -it -u $(id -u):$(id -g) -v $(pwd):$(pwd) -w $(pwd) -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e PKR_VAR_env hashicorp/packer:light-1.8.5"
+# alias packer="docker run --rm -it -u $(id -u):$(id -g) -v $(pwd):$(pwd) -w $(pwd) -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e PKR_VAR_env hashicorp/packer:light-1.8.5"
