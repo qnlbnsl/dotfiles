@@ -29,7 +29,6 @@ export PATH=$JAVA_BIN:$CMD_TOOLS:$PLATFORM_TOOLS:$GO_PATH:$GO_PKG_PATH:$PATH
 # Show the git profile in the prompt.
 export PROMPT='%{$fg_bold[yellow]%}[%m]%{$reset_color%}%{$fg_bold[blue]%}($(getgit))%{$reset_color%}'${PROMPT}
 
-alias python=/usr/local/bin/python3
 fpath=(
   ~/.zsh_functions
   ~/.zsh_functions/.aws
