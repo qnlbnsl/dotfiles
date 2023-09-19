@@ -25,7 +25,7 @@ LINKS_SRCS	=	.oh-my-zsh			\
                	.zshenv				\
                 .zshrc				\
 				.config/sheldon/plugins.toml \
-				.zplug				\
+				# .zplug				\
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -130,7 +130,7 @@ clean_.oh-my-zsh:
 sheldon: ${HOME}/.local/bin/sheldon
 ${HOME}/.local/bin/sheldon:
 	@mkdir -p $(dir $@)
-	curl --proto '=https' -fLsS https://rossmacarthur.github.io/install/crate.sh | bash -s -- --git rossmacarthur/sheldon --to $(dir $@)
+	curl --proto '=https' -fLsS https://rossmacarthur.github.io/install/crate.sh | bash -s -- --repo rossmacarthur/sheldon --to ~/.local/bin
 clean_.sheldon:
 	${RM} ${HOME}/.local/bin/sheldon
 	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
