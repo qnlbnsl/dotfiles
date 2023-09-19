@@ -14,18 +14,17 @@ else
 OS=darwin
 endif
 
-LINKS_SRCS	=	.oh-my-zsh			\
-				.ssh/config			\
-				.zsh_functions		\
-				.editorconfig		\
-                .gitconfig			\
-                .p10k.zsh			\
-				.tmux.conf			\
-				.zprofile			\
-               	.zshenv				\
-                .zshrc				\
-				.config/sheldon/plugins.toml \
-				# .zplug				\
+LINKS_SRCS=	.oh-my-zsh	\
+		.ssh/config	\
+		.zsh_functions	\
+		.editorconfig	\
+		.gitconfig	\
+		.p10k.zsh	\
+		.tmux.conf	\
+		.zprofile	\
+		.zshenv		\
+		.zshrc		\
+		.config		\
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -55,7 +54,7 @@ clean_tpm:
 # Install nvm so it is around when needed.
 # The git command is taken from NVM github repository.
 nvm: ${HOME}/.nvm
- 
+
 ${HOME}/.nvm:
 	@[ -d $@ ] && (cd $@ && git fetch --tags origin && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`) || git clone "https://anonymouse@github.com/nvm-sh/nvm" $@ && (cd $@ && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`)
 clean_.nvm:
