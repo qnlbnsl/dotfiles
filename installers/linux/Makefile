@@ -39,6 +39,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 
 # Default to install target.
 all: install
+shell: install
 install: omz sheldon tpm nvm import_ssh_keys
 clean:   clean_.oh-my-zsh clean_.zplug clean_tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
 
