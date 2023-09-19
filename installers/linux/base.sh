@@ -69,5 +69,6 @@ maxfiles="fs.file-max = 65535"
 maxwatches="fs.inotify.max_user_watches=524288"
 echo $maxfiles | sudo tee -a /etc/sysctl.conf
 echo $maxwatches | sudo tee -a /etc/sysctl.conf
+sudo chsh -s /usr/bin/zsh "$(whoami)"
 echo "Done!"
 # finito
