@@ -16,7 +16,6 @@ endif
 
 LINKS_SRCS	=	.oh-my-zsh			\
 				.ssh/config			\
-				.zplug				\
 				.zsh_functions		\
 				.editorconfig		\
                 .gitconfig			\
@@ -25,6 +24,8 @@ LINKS_SRCS	=	.oh-my-zsh			\
 				.zprofile			\
                	.zshenv				\
                 .zshrc				\
+				.config/sheldon/plugins.toml \
+				.zplug				\
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -38,7 +39,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 
 # Default to install target.
 all: install
-install: omz zplug tpm nvm import_ssh_keys
+install: omz sheldon tpm nvm import_ssh_keys
 clean:   clean_.oh-my-zsh clean_.zplug clean_tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
 
 ######################################################################################################################################################
@@ -124,6 +125,14 @@ ${HOME}/.oh-my-zsh/oh-my-zsh.sh:
 	git clone --depth=1 "https://anonymouse@github.com/romkatv/powerlevel10k.git" $(dir $@)custom/themes/powerlevel10k
 clean_.oh-my-zsh:
 	${RM} -r ${HOME}/.oh-my-zsh
+
+sheldon: ${HOME}/.local/bin/sheldon
+${HOME}/.local/bin/sheldon:
+	@mkdir -p $(dir $@)
+	curl --proto '=https' -fLsS https://rossmacarthur.github.io/install/crate.sh | bash -s -- --git rossmacarthur/sheldon --to $(dir $@)
+clean_.sheldon:
+	${RM} ${HOME}/.local/bin/sheldon
+	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
 
 # Install zplug
 zplug: ${HOME}/.zplug/init.zsh
@@ -260,8 +269,6 @@ locales:
 # Setup User
 user:
 	@bash -c 'source ${PWD}/shell_functions/setup_user.sh; setup_user'
-
-
 ######################################################################################################################################################
 # Main targets.
 install:
