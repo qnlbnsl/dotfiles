@@ -49,7 +49,15 @@ purge: clean
 	cd ${HOME}; ${RM} -r ${PURGE_LIST}
 
 # Phony targets.
-.PHONY: all install clean purge github locales user
+.PHONY: all shell install clean purge \
+		check_docker docker clean_docker \
+        gitsetup clean_link_.gitconfig.local \
+        import_ssh_keys import_ssh_keys_service \
+        omz clean_.oh-my-zsh sheldon clean_.sheldon \
+        tpm clean_.tpm nvm clean_.nvm go clean_.goroot \
+        golangci-lint clean_golangci-lint terraform clean_terraform \
+        github github-login github-login-gpg gpg_setup gpg_setup_export upload_gpg_keys git_gpg_update \
+        locales clean_file_% clean_link_%
 
 
 ######################################################################################################################################################
@@ -176,7 +184,7 @@ clean_link_.ssh/config:
 ${HOME}/.zsh_functions: ${SHELL_DIR}/.zsh_functions
 	@mkdir -p $(dir $@)
 	ln -f -s $< $@
-clean_link_zsh_functions:
+clean_link_.zsh_functions:
 	@[ -L ${HOME}/.zsh_functions ] && ${RM} ${HOME}/.zsh_functions || true
 
 # Ensure directories are created for .config/sheldon/plugins.toml
@@ -288,11 +296,11 @@ git_gpg_update: .git_gpg_update
 	key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	echo "  signingKey = $$key1" | tee -a ${SHELL_DIR}/.gitconfig.qnlbnsl; \
-	$(MAKE) gitsetup
 	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
 	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec
 	touch $@
+	$(MAKE) gitsetup
 
 ######################################################################################################################################################
 # Setup locales
