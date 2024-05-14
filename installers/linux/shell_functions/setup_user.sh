@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 # Function to create a new user with sudo permissions
@@ -41,4 +40,5 @@ create_new_user() {
   echo "dotfiles cloned." 
   echo "run: chmod +x /home/$new_username/.dotfiles/installer/linux/base.sh"
   echo "run: /home/$new_username/.dotfiles/installer/linux/base.sh to setup the new user."
+  return 0
 }

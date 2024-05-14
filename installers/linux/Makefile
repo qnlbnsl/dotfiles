@@ -99,17 +99,26 @@ clean_.goroot:
 ######################################################################################################################################################
 # Install Docker.
 # Check for Docker command
-check_docker:
-	@command -v docker > /dev/null 2>&1 || { echo >&2 "Docker is required but it's not installed. Aborting."; exit 1; }
+check_docker: .check_docker
+.check_docker:
+	@if command -v docker > /dev/null 2>&1; then \
+		echo >&2 "Docker is installed."; \
+		touch "@"; \
+	else \
+		echo "Docker is required but it's not installed."; \
+	fi
 
 # Install docker-compose.
-docker: check_docker .docker
-.docker:
-	@sudo sh shell_functions/docker.sh
-	sudo usermod -aG docker ${USER}
-
+docker: check_docker
+	@if ! [ -f /tmp/docker_installed ]; then \
+		sudo sh shell_functions/docker.sh; \
+		sudo usermod -aG docker ${USER}; \
+	fi
 clean_docker:
 	@sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+clean_.check_docker:
+	${RM} .check_docker 
 
 ######################################################################################################################################################
 # Install golangci-lint.
