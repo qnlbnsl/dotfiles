@@ -3,6 +3,7 @@
 set -e
 
 user=$(whoami)
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 
 # Proxmox Specific
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
@@ -29,7 +30,7 @@ clear
 
 if [ $response -eq 0 ]; then
   # Source the user creation script
-  source shell_functions/setup_user.sh
+  source "${script_dir}/shell_functions/setup_user.sh"
   create_new_user
   echo "Please exit and log in with the new user. Aborting the script."
   exit 0
@@ -38,17 +39,13 @@ fi
 mkdir -p $HOME/.local/bin
 # Define an associative array for package descriptions
 declare -A descriptions=(
-  ["omz"]="Oh-My-Zsh and Powerlevel10k"
-  ["sheldon"]="Sheldon Plugin Manager"
-  ["tpm"]="Tmux Plugin Manager"
-  ["nvm"]="Node Version Manager"
+  ["shell"]="Shell Dotfiles"
   ["go"]="Go Language"
+  ["golangci-lint"]="Go Linter"
   ["docker"]="Docker Container Engine"
   ["terraform"]="Infrastructure as Code Tool"
-  ["golangci-lint"]="Go Linter"
-  ["import_ssh_keys"]="Import SSH Keys"
-  ["locales"]="Setup locales for the system"
   ["github"]="Setup GitHub and GPG keys"
+  ["locales"]="Setup locales for the system"
 )
 
 # Generate a checklist array for the main dialog
@@ -128,4 +125,4 @@ maxwatches="fs.inotify.max_user_watches=524288"
 echo $maxfiles | sudo tee -a /etc/sysctl.conf
 echo $maxwatches | sudo tee -a /etc/sysctl.conf
 sudo chsh -s /usr/bin/zsh "$(whoami)"
-echo "Done!"
+echo "Done! Please reboot the system to apply changes orrrrrrr exit the ssh session and log back in."

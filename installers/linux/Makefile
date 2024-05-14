@@ -1,12 +1,11 @@
-# All Targets: omz zplug tpm nvm go docker terraform golangci-lint install clean purge
 USER ?= $(shell whoami)
 HOME ?= $(shell [ -d "/Users/${USER}" ] && echo /Users/${USER} || echo /home/${USER})
-PWD  ?= $(shell pwd)
-RM   ?= rm -f
-BASE_DIR := $(abspath $(PWD)/../..)
+MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+BASE_DIR := $(abspath $(MAKEFILE_DIR)/../..)
 GPG_TEMPLATES_DIR := $(BASE_DIR)/gpg_templates
 SHELL_DIR := $(BASE_DIR)/shell
 SSH_DIR := $(BASE_DIR)/.ssh
+RM   ?= rm -f
 ARCH=amd64
 ifeq ($(shell uname),Linux)
 	OS=linux
