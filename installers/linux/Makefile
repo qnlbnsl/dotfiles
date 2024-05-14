@@ -15,16 +15,18 @@ endif
 
 LINKS_SRCS=	.oh-my-zsh		\
 			.aliases		\
+			.android 		\
 			.autoload		\
-			.zsh_functions	\
 			.editorconfig	\
 			.gitconfig		\
-			.p10k.zsh		\
+			.gitignore.global \
+			.profile		\
 			.tmux.conf		\
 			.zprofile		\
 			.zshenv			\
 			.zshrc			\
 			.ssh/config		\
+			.zsh_functions	\
 			.config/sheldon/plugins.toml
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
