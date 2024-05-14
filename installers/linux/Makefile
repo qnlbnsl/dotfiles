@@ -20,6 +20,7 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.editorconfig	\
 			.gitconfig		\
 			.gitignore.global \
+			.p10k.zsh		\
 			.profile		\
 			.tmux.conf		\
 			.zprofile		\
