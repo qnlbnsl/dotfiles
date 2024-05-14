@@ -22,6 +22,20 @@ fi
 
 sudo apt install -y git curl make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential dialog
 
+# Ask if the user wants to create a new user
+dialog --yesno "Do you want to create a new user?" 7 60
+response=$?
+clear
+
+if [ $response -eq 0 ]; then
+  # Source the user creation script
+  source shell_functions/setup_user.sh
+  create_new_user
+  echo "Please exit and log in with the new user. Aborting the script."
+  exit 0
+fi
+
+mkdir -p $HOME/.local/bin
 # Define an associative array for package descriptions
 declare -A descriptions=(
   ["omz"]="Oh-My-Zsh and Powerlevel10k"
@@ -34,7 +48,6 @@ declare -A descriptions=(
   ["golangci-lint"]="Go Linter"
   ["import_ssh_keys"]="Import SSH Keys"
   ["locales"]="Setup locales for the system"
-  ["user"]="Create New User with sudoers permissions"
   ["github"]="Setup GitHub and GPG keys"
 )
 
