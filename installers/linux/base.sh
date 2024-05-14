@@ -23,17 +23,19 @@ fi
 
 sudo apt install -y git curl make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential dialog
 
-# Ask if the user wants to create a new user
-dialog --yesno "Do you want to create a new user?" 7 60
-response=$?
-clear
+if [[ $user == "root" ]]; then  
+  # Ask if the user wants to create a new user
+  dialog --yesno "Do you want to create a new user?" 7 60
+  response=$?
+  clear
 
-if [ $response -eq 0 ]; then
-  # Source the user creation script
-  source "${script_dir}/shell_functions/setup_user.sh"
-  create_new_user
-  echo "Please exit and log in with the new user. Aborting the script."
-  exit 0
+  if [ $response -eq 0 ]; then
+    # Source the user creation script
+    source "${script_dir}/shell_functions/setup_user.sh"
+    create_new_user
+    echo "Please exit and log in with the new user. Aborting the script."
+    exit 0
+  fi
 fi
 
 mkdir -p $HOME/.local/bin
