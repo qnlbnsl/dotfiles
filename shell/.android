@@ -1,0 +1,11 @@
+export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+export TOOLS="/home/qnlbnsl/tools"
+export ANDROID_HOME="$TOOLS/android/android-sdk"
+export ANDROID_SDK_ROOT="$TOOLS/android/android-sdk"
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk"
+export JAVA_BIN="$JAVA_HOME/bin"
+export CMD_TOOLS="$ANDROID_HOME/cmdline-tools/bin"
+export PLATFORM_TOOLS="$ANDROID_HOME/platform-tools"
+alias sdkmanager="sdkmanager --sdk_root=$ANDROID_SDK_ROOT"
+
+export PATH=$JAVA_BIN:$CMD_TOOLS:$PLATFORM_TOOLS:$PATH

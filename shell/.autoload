@@ -1,0 +1,19 @@
+# Load all functions from zsh_functions.
+# TODO: Convert the following into a looped function
+autoload -Uz ec2connect
+autoload -Uz getgit
+autoload -Uz rl
+autoload -Uz setgit
+autoload -Uz timezsh
+autoload -Uz unsetaws
+
+# Load more autocompletions.
+# Uncomment o enable bash ccompinit mode
+# autoload -U +X bashcompinit && bashcompinit
+autoload -Uz compinit
+for dump in ~/.zcompdump(N.mh+24); do
+  compinit
+done
+compinit -C
+complete -o nospace -C ${HOME}/go/bin/terraform terraform
+complete -o nospace -C ${HOME}/go/bin/vault vault
