@@ -78,7 +78,7 @@ clean_.nvm:
 # Install GO to ~/goroot
 # The url is https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
 go: ${HOME}/.goroot
-${HOME}/.goroot: versions/go
+${HOME}/.goroot: ${BASE_DIR}/versions/go
 	@${RM} -r $@ && mkdir $@
 	@printf "\nDownloading from https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz\n"
 	curl -sSL "https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
@@ -107,7 +107,7 @@ clean_docker:
 ######################################################################################################################################################
 # Install golangci-lint.
 golangci-lint: ${HOME}/.local/bin/golangci-lint
-${HOME}/.local/bin/golangci-lint: versions/golangci-lint
+${HOME}/.local/bin/golangci-lint: ${BASE_DIR}/versions/golangci-lint
 	@mkdir -p $(dir $@)
 	curl -sfL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | sh -s -- -b $(dir $@) v$(shell cat $<)
 clean:   clean_golangci-lint
@@ -123,7 +123,7 @@ ${HOME}/.local/bin/terraform: terraform.zip
 	mv terraform $@
 	touch $@
 .INTERMEDIATE: terraform.zip
-terraform.zip: versions/terraform
+terraform.zip: ${BASE_DIR}/versions/terraform
 	@mkdir -p $(dir $@)
 	curl -sfL "https://releases.hashicorp.com/terraform/$(shell cat $<)/terraform_$(shell cat $<)_${OS}_${ARCH}.zip" -o terraform.zip
 clean_terraform:
