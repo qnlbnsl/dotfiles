@@ -296,20 +296,20 @@ $(EXPORT_IMMERTEC_PROXY): $(GPG_IMMERTEC_KEY)
 
 upload_gpg_keys: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
 	@echo "Uploading GPG keys to GitHub..."
-	gh gpg-key import$(EXPORT_QNLBNSL_PROXY) 
-	gh gpg-key import $(EXPORT_IMMERTEC_PROXY)
+	gh gpg-key add $(EXPORT_QNLBNSL_PROXY) 
+	gh gpg-key add $(EXPORT_IMMERTEC_PROXY)
 	rm -rf $(EXPORT_QNLBNSL_PROXY)
 	rm -rf $(EXPORT_IMMERTEC_PROXY)
 
 git_gpg_update: .git_gpg_update
 .git_gpg_update:
-	key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
+	@key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	echo "  signingKey = $$key1" | tee -a ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
-	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec
-	touch $@
+	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec; \
+	touch $@; \
 	$(MAKE) gitsetup
 
 ######################################################################################################################################################
