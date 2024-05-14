@@ -15,7 +15,8 @@ else
 endif
 
 LINKS_SRCS=	.oh-my-zsh		\
-			.ssh/config		\
+			.aliases		\
+			.autoload		\
 			.zsh_functions	\
 			.editorconfig	\
 			.gitconfig		\
@@ -24,9 +25,8 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.zprofile		\
 			.zshenv			\
 			.zshrc			\
-			.aliases		\
-			.autoload		\
-			.config			\
+			.ssh/config		\
+			.config/sheldon/plugins.toml
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -100,9 +100,7 @@ docker: check_docker .docker
 	sudo usermod -aG docker ${USER}
 
 clean_docker:
-	@sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-	
+	@sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 ######################################################################################################################################################
 # Install golangci-lint.
@@ -155,6 +153,9 @@ clean_.sheldon:
 clean_file_%:
 	${RM} ${HOME}/$*
 
+######################################################################################################################################################
+################################################################### LINKS ############################################################################
+######################################################################################################################################################
 # Place symlink from home to here.
 install: ${LINKS_TARGETS}
 ${HOME}/%: ${SHELL_DIR}/%
@@ -164,9 +165,6 @@ clean: ${LINKS_CLEAN}
 clean_link_%:
 	@[ -L ${HOME}/$* ] && ${RM} ${HOME}/$* || true
 
-######################################################################################################################################################
-##################################################################### SSH ############################################################################
-######################################################################################################################################################
 # Make sure we have a ~/.ssh dir for linking ~/.ssh/config
 ${HOME}/.ssh/config: ${SSH_DIR}/config
 	@mkdir -p $(dir $@)
@@ -174,6 +172,24 @@ ${HOME}/.ssh/config: ${SSH_DIR}/config
 clean_link_.ssh/config:
 	@[ -L ${HOME}/.ssh/config ] && ${RM} ${HOME}/.ssh/config || true
 
+# Ensure directories are created for .zsh_functions
+${HOME}/.zsh_functions: ${SHELL_DIR}/.zsh_functions
+	@mkdir -p $(dir $@)
+	ln -f -s $< $@
+clean_link_zsh_functions:
+	@[ -L ${HOME}/.zsh_functions ] && ${RM} ${HOME}/.zsh_functions || true
+
+# Ensure directories are created for .config/sheldon/plugins.toml
+${HOME}/.config/sheldon/plugins.toml: ${SHELL_DIR}/.config/sheldon/plugins.toml
+	@mkdir -p $(dir $@)
+	ln -f -s $< $@
+clean_link_.config/sheldon/plugins.toml:
+	@[ -L ${HOME}/.config/sheldon/plugins.toml ] && ${RM} ${HOME}/.config/sheldon/plugins.toml || true
+
+######################################################################################################################################################
+##################################################################### SSH ############################################################################
+######################################################################################################################################################
+# Import SSH keys from GitHub
 import_ssh_keys: ${HOME}/.ssh/authorized_keys
 ${HOME}/.ssh/authorized_keys:
 	curl -s https://github.com/qnlbnsl.keys >> $@
