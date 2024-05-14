@@ -104,11 +104,7 @@ if echo "$user_choices" | grep -q "github"; then
   elif echo "$github_choices" | grep -q "github-login"; then
     github_choices="github github-login"
   fi
-
-  # Add GitHub tasks to main user choices
-  for choice in $github_choices; do
-    user_choices+=" $choice"
-  done
+  user_choices+=" $github_choices"
 fi
 
 # Handle user selections
