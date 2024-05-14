@@ -25,6 +25,3 @@ create_new_user() {
   echo "$new_username ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-$new_username-root"
   echo "User $new_username created and added to sudo group."
 }
-
-# Prompt for new user creation
-create_new_user
