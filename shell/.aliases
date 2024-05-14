@@ -1,0 +1,14 @@
+# Docker compose shortcuts in addition to the docker-compose oh-my-zsh plugin.
+alias dcu='docker-compose up -d --build -t 1'
+alias dcd='docker-compose down -v -t 1'
+alias dcr='docker-compose restart -t 1'
+
+# Docker run with current user settings mounted in.
+alias udockerrun='docker run --rm --user $(id -u):$(id -g) -e HOME -v $HOME:$HOME -w $(pwd) -e GOPATH=$HOME/go:/go'
+
+# Reset gpg
+alias gpgReset="gpgconf --kill gpg-agent"
+
+# Switch python versions
+alias setPython3="sudo apt install python-is-python3"
+alias setPython2="sudo apt install python-is-python2"

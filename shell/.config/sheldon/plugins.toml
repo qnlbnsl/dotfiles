@@ -17,10 +17,10 @@ shell = "zsh"
 [plugins.ohmyzsh]
 github = 'ohmyzsh/ohmyzsh'
 dir = 'plugins'
-use = ['{yarn,git,vscode,golang,aws,terraform,tmux,docker,docker-compose,zsh-autosuggestions}/*.plugin.zsh']
+use = ['{yarn,git,vscode,golang,aws,terraform,tmux,docker,docker-compose,zsh-autosuggestions,gcloud,nvm,ssh-agent}/*.plugin.zsh']
 
-[plugins.zsh-nvm]
-github = 'lukechilds/zsh-nvm'
+# [plugins.zsh-nvm]
+# github = 'lukechilds/zsh-nvm'
 
 [plugins.zsh-completions]
 github = 'zsh-users/zsh-completions'
@@ -31,6 +31,8 @@ github = 'zsh-users/zsh-history-substring-search'
 [plugins.zsh-syntax-highlighting]
 github = 'zsh-users/zsh-syntax-highlighting'
 
+[plugins.alias-tips]
+github = 'djui/alias-tips'
 
 
 # For example:

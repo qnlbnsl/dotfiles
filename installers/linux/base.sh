@@ -9,11 +9,9 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
   echo "We are using Proxmox"
   # Sync time
   sudo hwclock --hctosys
-  proxmox=true
-  # Remove enterprise repo from proxmox
-  echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
-  # Remove the no subscription notice
-  sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
+  # Use PVE Tools to setup proxmox
+  bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/post-pve-install.sh)"
+  echo "Please visit https://tteck.github.io/Proxmox/ for more tools"
 fi
 
 # Install sudo if needed
@@ -26,23 +24,27 @@ sudo apt install -y git curl make gcc tmux mosh zsh unzip gzip ssh-import-id bui
 
 # Define an associative array for package descriptions
 declare -A descriptions=(
-  ["shell"]="Setup Everything for zsh"
-  ["locales"]="Setup locales for the system"
-  ["user"]="Create New User with sudoers permissions"
-  ["git"]="Setup github and gpg keys"
+  ["omz"]="Oh-My-Zsh and Powerlevel10k"
+  ["sheldon"]="Sheldon Plugin Manager"
+  ["tpm"]="Tmux Plugin Manager"
+  ["nvm"]="Node Version Manager"
   ["go"]="Go Language"
   ["docker"]="Docker Container Engine"
   ["terraform"]="Infrastructure as Code Tool"
   ["golangci-lint"]="Go Linter"
+  ["import_ssh_keys"]="Import SSH Keys"
+  ["locales"]="Setup locales for the system"
+  ["user"]="Create New User with sudoers permissions"
+  ["github"]="Setup GitHub and GPG keys"
 )
 
-# Generate a checklist array for dialog
+# Generate a checklist array for the main dialog
 checklist=()
 for key in "${!descriptions[@]}"; do
   checklist+=("$key" "${descriptions[$key]}" "off")
 done
 
-# Show dialog menu and get user selections
+# Show main dialog menu and get user selections
 user_choices=$(dialog --clear \
   --backtitle "Package Installation" \
   --no-cancel \
@@ -53,6 +55,49 @@ user_choices=$(dialog --clear \
   2>&1 >/dev/tty)
 
 clear
+
+# Check if GitHub was selected and show sub-dialog if needed
+if echo "$user_choices" | grep -q "github"; then
+  # Define an associative array for GitHub-related tasks
+  declare -A github_tasks=(
+    ["github"]="Install GitHub CLI"
+    ["github-login"]="Login to GitHub"
+    ["gpg_setup"]="Create GPG Keys"
+    ["upload_gpg_keys"]="Upload GPG Keys to GitHub"
+  )
+
+  # Generate a checklist array for the GitHub dialog
+  github_checklist=()
+  for key in "${!github_tasks[@]}"; do
+    github_checklist+=("$key" "${github_tasks[$key]}" "off")
+  done
+
+  # Show GitHub dialog menu and get user selections
+  github_choices=$(dialog --clear \
+    --backtitle "GitHub Setup" \
+    --no-cancel \
+    --title "Select GitHub Tasks to Perform" \
+    --checklist "Use SPACE to select tasks and ENTER to confirm:" \
+    20 60 10 \
+    "${github_checklist[@]}" \
+    2>&1 >/dev/tty)
+
+  clear
+
+  # Handle GitHub task dependencies and login task switching
+  if echo "$github_choices" | grep -q "upload_gpg_keys"; then
+    github_choices="github github-login-gpg gpg_setup upload_gpg_keys"
+  elif echo "$github_choices" | grep -q "gpg_setup"; then
+    github_choices="github github-login gpg_setup"
+  elif echo "$github_choices" | grep -q "github-login"; then
+    github_choices="github github-login"
+  fi
+
+  # Add GitHub tasks to main user choices
+  for choice in $github_choices; do
+    user_choices+=" $choice"
+  done
+fi
 
 # Handle user selections
 for choice in $user_choices; do
@@ -71,4 +116,3 @@ echo $maxfiles | sudo tee -a /etc/sysctl.conf
 echo $maxwatches | sudo tee -a /etc/sysctl.conf
 sudo chsh -s /usr/bin/zsh "$(whoami)"
 echo "Done!"
-# finito

@@ -9,22 +9,24 @@ SHELL_DIR := $(BASE_DIR)/shell
 SSH_DIR := $(BASE_DIR)/.ssh
 ARCH=amd64
 ifeq ($(shell uname),Linux)
-OS=linux
+	OS=linux
 else
-OS=darwin
+	OS=darwin
 endif
 
-LINKS_SRCS=	.oh-my-zsh	\
-		.ssh/config	\
-		.zsh_functions	\
-		.editorconfig	\
-		.gitconfig	\
-		.p10k.zsh	\
-		.tmux.conf	\
-		.zprofile	\
-		.zshenv		\
-		.zshrc		\
-		.config		\
+LINKS_SRCS=	.oh-my-zsh		\
+			.ssh/config		\
+			.zsh_functions	\
+			.editorconfig	\
+			.gitconfig		\
+			.p10k.zsh		\
+			.tmux.conf		\
+			.zprofile		\
+			.zshenv			\
+			.zshrc			\
+			.aliases		\
+			.autoload		\
+			.config			\
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -40,14 +42,22 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 all: install
 shell: install
 install: omz sheldon tpm nvm import_ssh_keys
-clean:   clean_.oh-my-zsh clean_.zplug clean_tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
+clean:   clean_.oh-my-zsh clean_.zplug clean_.tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
+
+# Purge removes the common cache folder created by various tools.
+purge: clean
+	cd ${HOME}; ${RM} -r ${PURGE_LIST}
+
+# Phony targets.
+.PHONY: all install clean purge github locales user
+
 
 ######################################################################################################################################################
 # Install tpm (tmux plugin manager)
 tpm: ${HOME}/.tmux/plugins/tpm/tpm
 ${HOME}/.tmux/plugins/tpm/tpm:
 	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone https://github.com/tmux-plugins/tpm $(dir $@)
-clean_tpm:
+clean_.tpm:
 	${RM} -r ${HOME}/.tmux/plugins/tpm
 
 ######################################################################################################################################################
@@ -56,39 +66,51 @@ clean_tpm:
 nvm: ${HOME}/.nvm
 
 ${HOME}/.nvm:
-	@[ -d $@ ] && (cd $@ && git fetch --tags origin && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`) || git clone "https://anonymouse@github.com/nvm-sh/nvm" $@ && (cd $@ && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`)
+	@[ -d $@ ] && (cd $@ && git fetch --tags origin && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`) \
+	|| git clone "https://anonymouse@github.com/nvm-sh/nvm" $@ && \
+	(cd $@ && git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`)
 clean_.nvm:
 	${RM} -r ${HOME}/.nvm
 
 ######################################################################################################################################################
-# Install go.
+###################################################################### TOOLS #########################################################################
+######################################################################################################################################################
+# Install GO to ~/goroot
 # The url is https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
-go: ${HOME}/goroot
-${HOME}/goroot: versions/go
+go: ${HOME}/.goroot
+${HOME}/.goroot: versions/go
 	@${RM} -r $@ && mkdir $@
 	@printf "\nDownloading from https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz\n"
 	curl -sSL "https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
 	@touch $@
-clean_goroot:
-	${RM} -r ${HOME}/goroot
+clean_.goroot:
+	${RM} -r ${HOME}/.goroot
 	@printf "\nTo cleanup go mod's cache, run:\n\n  sudo rm -rf ${HOME}/go/pkg/\n\n" >&2
 
 ######################################################################################################################################################
+# Install Docker.
+# Check for Docker command
+check_docker:
+	@command -v docker > /dev/null 2>&1 || { echo >&2 "Docker is required but it's not installed. Aborting."; exit 1; }
+
 # Install docker-compose.
-docker:
-	curl -fsSL https://get.docker.com | bash
+docker: check_docker .docker
+.docker:
+	@sudo sh shell_functions/docker.sh
 	sudo usermod -aG docker ${USER}
+
 clean_docker:
-	${RM} ${HOME}/.local/bin/docker-compose
-	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
+	@sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+	
 
 ######################################################################################################################################################
 # Install golangci-lint.
 golangci-lint: ${HOME}/.local/bin/golangci-lint
-clean:   clean_golangci-lint
 ${HOME}/.local/bin/golangci-lint: versions/golangci-lint
 	@mkdir -p $(dir $@)
 	curl -sfL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | sh -s -- -b $(dir $@) v$(shell cat $<)
+clean:   clean_golangci-lint
 clean_golangci-lint:
 	${RM} ${HOME}/.local/bin/golangci-lint
 	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
@@ -109,13 +131,8 @@ clean_terraform:
 	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
 
 ######################################################################################################################################################
-# Shell dotfiles
-# Default the git profile to the .qnlbnsl one.
-gitsetup: ${HOME}/.gitconfig.local
-${HOME}/.gitconfig.local: ${SHELL_DIR}/.gitconfig.qnlbnsl
-	ln -f -s $< $@
-clean: clean_link_.gitconfig.local
-
+##################################################################### DOTFILES #######################################################################
+######################################################################################################################################################
 # Install oh-my-zsh if not installed.
 # Use anonymous@ to avoid matching any existing insteadOf url config.
 # install: ${HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k
@@ -134,13 +151,6 @@ clean_.sheldon:
 	${RM} ${HOME}/.local/bin/sheldon
 	@rmdir ${HOME}/.local/bin ${HOME}/.local 2> /dev/null || true
 
-# Install zplug
-zplug: ${HOME}/.zplug/init.zsh
-${HOME}/.zplug/init.zsh:
-	@[ -d $(dir $@) ] && (cd $(dir $@) && git pull) || git clone "https://anonymouse@github.com/zplug/zplug" $(dir $@)
-clean_.zplug:
-	${RM} -r ${HOME}/.zplug
-
 # remove a specific file from home.. e.g. make clean_file_.zshrc
 clean_file_%:
 	${RM} ${HOME}/$*
@@ -155,8 +165,9 @@ clean_link_%:
 	@[ -L ${HOME}/$* ] && ${RM} ${HOME}/$* || true
 
 ######################################################################################################################################################
-# SSH
-# Make sure we have a ~/.ssh dir for linkink ~/.ssh/config
+##################################################################### SSH ############################################################################
+######################################################################################################################################################
+# Make sure we have a ~/.ssh dir for linking ~/.ssh/config
 ${HOME}/.ssh/config: ${SSH_DIR}/config
 	@mkdir -p $(dir $@)
 	ln -f -s $< $@
@@ -183,68 +194,81 @@ import_ssh_keys_service: /etc/systemd/system/import-ssh-keys.service /etc/system
 	@echo "Linked timer file"
 
 ######################################################################################################################################################
-## GIT
-git:
-	@echo "Installing gh..."
-	@curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-	@sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-	@echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-	@sudo apt update && sudo apt install gh
-	@bash -c 'if [ -x "$$(command -v gh)" ]; then \
-		echo "Would you like to login to GitHub?"; \
-		select answer in Yes No; do \
-			case $$REPLY in \
-				[yY][eE][sS] | [yY]) \
-					gh auth login -s write:gpg_key; \
-					echo "Would you like to generate GPG keys?"; \
-					select answer in Yes No; do \
-						case $$REPLY in \
-							[yY][eE][sS] | [yY]) \
-								@$(MAKE) gpg_setup; \
-								@$(MAKE) upload_gpg_keys; \
-								@$(MAKE) git_gpg_update; \
-								exit 0; \
-								;; \
-							[nN][oO] | [nN]) \
-								exit 0; \
-								;; \
-						esac; \
-					done; \
-					break; \
-					;; \
-				[nN][oO] | [nN]) \
-					exit 0; \
-					;; \
-			esac; \
-		done; \
-	fi')
+####################################################### GITHUB #######################################################################################
+######################################################################################################################################################
+# Default the git profile to the .qnlbnsl one.
+gitsetup: ${HOME}/.gitconfig.local
+${HOME}/.gitconfig.local: ${SHELL_DIR}/.gitconfig.qnlbnsl
+	ln -f -s $< $@
+clean: clean_link_.gitconfig.local
 
-gpg_setup:
-	@echo "Generating GPG keys..."
-	gpg --generate-key --batch ${GPG_TEMPLATES_DIR}/qnlbnsl
-	gpg --generate-key --batch ${GPG_TEMPLATES_DIR}/immertec
-	@bash -c 'echo "Would you like to export the generated GPG keys?"; \
-		select answer in Yes No; do \
-			case $$REPLY in \
-				[yY][eE][sS] | [yY]) \
-					echo "Exporting qnlbnsl@gmail.com"; \
-					gpg --output ~/public-qnlbnsl.pgp --armor --export 'qnlbnsl@gmail.com'; \
-					echo "Exporting kunal@immertec.com"; \
-					gpg --output ~/public-immertec.pgp --armor --export 'kunal@immertec.com'; \
-					break; \
-					;; \
-				[nN][oO] | [nN]) \
-					exit 0; \
-					;; \
-			esac; \
-		done'
+# Define paths to important files
+SOURCES_LIST=/etc/apt/sources.list.d/github-cli.list
+KEYRING=/usr/share/keyrings/githubcli-archive-keyring.gpg
+GPG_QNLBNSL_KEY = ${HOME}/.gpg_qnlbnsl_done
+GPG_IMMERTEC_KEY = ${HOME}/.gpg_immertec_done
+EXPORT_QNLBNSL_PROXY = ${HOME}/public-qnlbnsl.pgp
+EXPORT_IMMERTEC_PROXY = ${HOME}/public-immertec.pgp
+GPG_KEYS_UPLOADED = ${HOME}/.gpg_keys_uploaded
+GIT_GPG_UPDATED = ${HOME}/.git_gpg_updated
 
-upload_gpg_keys:
+github: $(SOURCES_LIST) $(KEYRING)
+	@echo "Checking if GitHub CLI is already installed..."
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "Installing gh..."; \
+		sudo apt update && sudo apt install gh; \
+	else \
+		echo "GitHub CLI is already installed."; \
+	fi
+
+# Create or update the sources list if it does not exist
+$(SOURCES_LIST): $(KEYRING)
+	@echo "Adding GitHub CLI package repository..."
+	@echo "deb [arch=$$(dpkg --print-architecture) signed-by=$(KEYRING)] https://cli.github.com/packages stable main" | sudo tee $@ >/dev/null
+
+# Ensure the GPG keyring is up-to-date
+$(KEYRING):
+	@echo "Installing GitHub CLI archive keyring..."
+	@curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=$@
+	@sudo chmod go+r $@
+
+github-login: github	
+	@gh auth login		
+
+github-login-gpg: github	
+	@gh auth login -s write:gpg_key		
+
+# Generate GPG keys
+gpg_setup: $(GPG_QNLBNSL_KEY) $(GPG_IMMERTEC_KEY)
+
+$(GPG_QNLBNSL_KEY):
+	@gpg --list-keys 'qnlbnsl@gmail.com' || gpg --generate-key --batch ${GPG_TEMPLATES_DIR}/qnlbnsl
+	@touch $@
+
+$(GPG_IMMERTEC_KEY):
+	@gpg --list-keys 'kunal@immertec.com' || gpg --generate-key --batch ${GPG_TEMPLATES_DIR}/immertec
+	@touch $@
+
+# Export GPG keys
+gpg_setup_export: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
+
+$(EXPORT_QNLBNSL_PROXY): $(GPG_QNLBNSL_KEY)
+	@gpg --output $@ --armor --export 'qnlbnsl@gmail.com'
+	@echo "Exported qnlbnsl@gmail.com"
+
+$(EXPORT_IMMERTEC_PROXY): $(GPG_IMMERTEC_KEY)
+	@gpg --output $@ --armor --export 'kunal@immertec.com'
+	@echo "Exported kunal@immertec.com"
+
+upload_gpg_keys: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
 	@echo "Uploading GPG keys to GitHub..."
-	gh gpg-key import ~/public-qnlbnsl.pgp
-	gh gpg-key import ~/public-immertec.pgp
+	gh gpg-key import$(EXPORT_QNLBNSL_PROXY) 
+	gh gpg-key import $(EXPORT_IMMERTEC_PROXY)
+	rm -rf $(EXPORT_QNLBNSL_PROXY)
+	rm -rf $(EXPORT_IMMERTEC_PROXY)
 
-git_gpg_update:
+git_gpg_update: .git_gpg_update
+.git_gpg_update:
 	key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	echo "  signingKey = $$key1" | tee -a ${SHELL_DIR}/.gitconfig.qnlbnsl; \
@@ -252,6 +276,7 @@ git_gpg_update:
 	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
 	cp ${SHELL_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
 	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec
+	touch $@
 
 ######################################################################################################################################################
 # Setup locales
@@ -270,13 +295,3 @@ locales:
 user:
 	@bash -c 'source ${PWD}/shell_functions/setup_user.sh; setup_user'
 ######################################################################################################################################################
-# Main targets.
-install:
-clean:
-
-# Purge removes the common cache folder created by various tools.
-purge: clean
-	cd ${HOME}; ${RM} -r ${PURGE_LIST}
-
-# Phony targets.
-.PHONY: all install clean purge git import_ssh_keys
