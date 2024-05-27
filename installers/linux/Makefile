@@ -19,6 +19,8 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.autoload		\
 			.editorconfig	\
 			.gitconfig		\
+			.gitconfig.qnlbnsl \
+			.gitconfig.immertec \
 			.gitignore.global \
 			.p10k.zsh		\
 			.profile		\

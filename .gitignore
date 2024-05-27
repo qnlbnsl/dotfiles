@@ -13,3 +13,5 @@ gh/
 .gitconfig.qnlbnsl
 .bashrc
 
+installers/linux/.git_gpg_update
+installers/linux/@
