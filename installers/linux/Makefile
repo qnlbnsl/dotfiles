@@ -46,7 +46,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 all: install
 shell: install
 install: omz sheldon tpm nvm import_ssh_keys
-clean:   clean_.oh-my-zsh clean_.tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
+clean:   clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot clean_docker clean_terraform clean_golangci-lint
 
 # Purge removes the common cache folder created by various tools.
 purge: clean
