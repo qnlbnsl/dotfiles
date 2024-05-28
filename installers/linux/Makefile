@@ -1,12 +1,11 @@
-# All Targets: omz zplug tpm nvm go docker terraform golangci-lint install clean purge
 USER ?= $(shell whoami)
 HOME ?= $(shell [ -d "/Users/${USER}" ] && echo /Users/${USER} || echo /home/${USER})
-PWD  ?= $(shell pwd)
-RM   ?= rm -f
-BASE_DIR := $(abspath $(PWD)/../..)
-GPG_TEMPLATES_DIR := $(BASE_DIR)/gpg_templates
+MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+BASE_DIR := $(abspath $(MAKEFILE_DIR)/../..)
+GPG_TEMPLATES_DIR := $(BASE_DIR)/git_gpg_templates
 SHELL_DIR := $(BASE_DIR)/shell
 SSH_DIR := $(BASE_DIR)/.ssh
+RM   ?= rm -f
 ARCH=amd64
 ifeq ($(shell uname),Linux)
 	OS=linux
@@ -15,18 +14,23 @@ else
 endif
 
 LINKS_SRCS=	.oh-my-zsh		\
-			.ssh/config		\
-			.zsh_functions	\
+			.aliases		\
+			.android 		\
+			.autoload		\
 			.editorconfig	\
 			.gitconfig		\
+			.gitconfig.qnlbnsl \
+			.gitconfig.immertec \
+			.gitignore.global \
 			.p10k.zsh		\
+			.profile		\
 			.tmux.conf		\
 			.zprofile		\
 			.zshenv			\
 			.zshrc			\
-			.aliases		\
-			.autoload		\
-			.config			\
+			.ssh/config		\
+			.zsh_functions	\
+			.config/sheldon/plugins.toml
 
 LINKS_TARGETS = ${LINKS_SRCS:%=${HOME}/%}
 LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
@@ -42,14 +46,22 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 all: install
 shell: install
 install: omz sheldon tpm nvm import_ssh_keys
-clean:   clean_.oh-my-zsh clean_.zplug clean_.tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
+clean:   clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot clean_docker clean_terraform clean_golangci-lint
 
 # Purge removes the common cache folder created by various tools.
 purge: clean
 	cd ${HOME}; ${RM} -r ${PURGE_LIST}
 
 # Phony targets.
-.PHONY: all install clean purge github locales user
+.PHONY: all shell install clean purge \
+		check_docker docker clean_docker \
+        gitsetup clean_link_.gitconfig.local \
+        import_ssh_keys import_ssh_keys_service \
+        omz clean_.oh-my-zsh sheldon clean_.sheldon \
+        tpm clean_.tpm nvm clean_.nvm go clean_.goroot \
+        golangci-lint clean_golangci-lint terraform clean_terraform \
+        github github-login github-login-gpg gpg_setup gpg_setup_export upload_gpg_keys git_gpg_update \
+        locales clean_file_% clean_link_%
 
 
 ######################################################################################################################################################
@@ -78,7 +90,7 @@ clean_.nvm:
 # Install GO to ~/goroot
 # The url is https://go.dev/dl/go1.19.2.linux-amd64.tar.gz
 go: ${HOME}/.goroot
-${HOME}/.goroot: versions/go
+${HOME}/.goroot: ${BASE_DIR}/versions/go
 	@${RM} -r $@ && mkdir $@
 	@printf "\nDownloading from https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz\n"
 	curl -sSL "https://go.dev/dl/go$(shell cat $<).${OS}-${ARCH}.tar.gz" | tar -xz -P --transform='s|^go|$@|'
@@ -90,24 +102,31 @@ clean_.goroot:
 ######################################################################################################################################################
 # Install Docker.
 # Check for Docker command
-check_docker:
-	@command -v docker > /dev/null 2>&1 || { echo >&2 "Docker is required but it's not installed. Aborting."; exit 1; }
+check_docker: .check_docker
+.check_docker:
+	@if command -v docker > /dev/null 2>&1; then \
+		echo >&2 "Docker is installed."; \
+		touch "@"; \
+	else \
+		echo "Docker is required but it's not installed."; \
+	fi
 
 # Install docker-compose.
-docker: check_docker .docker
-.docker:
-	@sudo sh shell_functions/docker.sh
-	sudo usermod -aG docker ${USER}
-
+docker: check_docker
+	@if ! [ -f /tmp/docker_installed ]; then \
+		sudo sh shell_functions/docker.sh; \
+		sudo usermod -aG docker ${USER}; \
+	fi
 clean_docker:
-	@sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+	@sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-	
+clean_.check_docker:
+	${RM} .check_docker
 
 ######################################################################################################################################################
 # Install golangci-lint.
 golangci-lint: ${HOME}/.local/bin/golangci-lint
-${HOME}/.local/bin/golangci-lint: versions/golangci-lint
+${HOME}/.local/bin/golangci-lint: ${BASE_DIR}/versions/golangci-lint
 	@mkdir -p $(dir $@)
 	curl -sfL "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh" | sh -s -- -b $(dir $@) v$(shell cat $<)
 clean:   clean_golangci-lint
@@ -123,7 +142,7 @@ ${HOME}/.local/bin/terraform: terraform.zip
 	mv terraform $@
 	touch $@
 .INTERMEDIATE: terraform.zip
-terraform.zip: versions/terraform
+terraform.zip: ${BASE_DIR}/versions/terraform
 	@mkdir -p $(dir $@)
 	curl -sfL "https://releases.hashicorp.com/terraform/$(shell cat $<)/terraform_$(shell cat $<)_${OS}_${ARCH}.zip" -o terraform.zip
 clean_terraform:
@@ -155,6 +174,9 @@ clean_.sheldon:
 clean_file_%:
 	${RM} ${HOME}/$*
 
+######################################################################################################################################################
+################################################################### LINKS ############################################################################
+######################################################################################################################################################
 # Place symlink from home to here.
 install: ${LINKS_TARGETS}
 ${HOME}/%: ${SHELL_DIR}/%
@@ -164,9 +186,6 @@ clean: ${LINKS_CLEAN}
 clean_link_%:
 	@[ -L ${HOME}/$* ] && ${RM} ${HOME}/$* || true
 
-######################################################################################################################################################
-##################################################################### SSH ############################################################################
-######################################################################################################################################################
 # Make sure we have a ~/.ssh dir for linking ~/.ssh/config
 ${HOME}/.ssh/config: ${SSH_DIR}/config
 	@mkdir -p $(dir $@)
@@ -174,6 +193,24 @@ ${HOME}/.ssh/config: ${SSH_DIR}/config
 clean_link_.ssh/config:
 	@[ -L ${HOME}/.ssh/config ] && ${RM} ${HOME}/.ssh/config || true
 
+# Ensure directories are created for .zsh_functions
+${HOME}/.zsh_functions: ${SHELL_DIR}/.zsh_functions
+	@mkdir -p $(dir $@)
+	ln -f -s $< $@
+clean_link_.zsh_functions:
+	@[ -L ${HOME}/.zsh_functions ] && ${RM} ${HOME}/.zsh_functions || true
+
+# Ensure directories are created for .config/sheldon/plugins.toml
+${HOME}/.config/sheldon/plugins.toml: ${SHELL_DIR}/.config/sheldon/plugins.toml
+	@mkdir -p $(dir $@)
+	ln -f -s $< $@
+clean_link_.config/sheldon/plugins.toml:
+	@[ -L ${HOME}/.config/sheldon/plugins.toml ] && ${RM} ${HOME}/.config/sheldon/plugins.toml || true
+
+######################################################################################################################################################
+##################################################################### SSH ############################################################################
+######################################################################################################################################################
+# Import SSH keys from GitHub
 import_ssh_keys: ${HOME}/.ssh/authorized_keys
 ${HOME}/.ssh/authorized_keys:
 	curl -s https://github.com/qnlbnsl.keys >> $@
@@ -232,11 +269,11 @@ $(KEYRING):
 	@curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=$@
 	@sudo chmod go+r $@
 
-github-login: github	
-	@gh auth login		
+github-login: github
+	@gh auth login
 
-github-login-gpg: github	
-	@gh auth login -s write:gpg_key		
+github-login-gpg: github
+	@gh auth login -s write:gpg_key
 
 # Generate GPG keys
 gpg_setup: $(GPG_QNLBNSL_KEY) $(GPG_IMMERTEC_KEY)
@@ -262,21 +299,21 @@ $(EXPORT_IMMERTEC_PROXY): $(GPG_IMMERTEC_KEY)
 
 upload_gpg_keys: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
 	@echo "Uploading GPG keys to GitHub..."
-	gh gpg-key import$(EXPORT_QNLBNSL_PROXY) 
-	gh gpg-key import $(EXPORT_IMMERTEC_PROXY)
+	gh gpg-key add $(EXPORT_QNLBNSL_PROXY)
+	gh gpg-key add $(EXPORT_IMMERTEC_PROXY)
 	rm -rf $(EXPORT_QNLBNSL_PROXY)
 	rm -rf $(EXPORT_IMMERTEC_PROXY)
 
 git_gpg_update: .git_gpg_update
 .git_gpg_update:
-	key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp ${SHELL_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
+	@key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
+	cp ${GPG_TEMPLATES_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	echo "  signingKey = $$key1" | tee -a ${SHELL_DIR}/.gitconfig.qnlbnsl; \
-	$(MAKE) gitsetup
 	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp ${SHELL_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
-	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec
-	touch $@
+	cp ${GPG_TEMPLATES_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
+	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec; \
+	touch $@; \
+	$(MAKE) gitsetup
 
 ######################################################################################################################################################
 # Setup locales
@@ -291,7 +328,4 @@ locales:
 
 
 ######################################################################################################################################################
-# Setup User
-user:
-	@bash -c 'source ${PWD}/shell_functions/setup_user.sh; setup_user'
-######################################################################################################################################################
+
