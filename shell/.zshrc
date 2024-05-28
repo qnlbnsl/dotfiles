@@ -29,11 +29,6 @@ if [[ -n "$SSH_CLIENT" || -n "$SSH_CONNECTION" ]]; then
   zstyle ':omz:plugins:ssh-agent' agent-forwarding on
 fi
 
-# If the ssh agent socket is not set or expired, reload it.
-if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-  rl
-fi
-
 # Load files for  functions
 fpath=( ~/.zsh_functions "${fpath[@]}" )
 
@@ -59,6 +54,12 @@ connectaws () {
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+
+# If the ssh agent socket is not set or expired, reload it.
+if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+  rl
+fi
+
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 # load plugins here. Ideally this should not produce console output.
