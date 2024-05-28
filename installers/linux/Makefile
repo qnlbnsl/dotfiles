@@ -46,7 +46,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 all: install
 shell: install
 install: omz sheldon tpm nvm import_ssh_keys
-clean:   clean_.oh-my-zsh clean_.tpm clean_.nvm clean_goroot clean_docker clean_terraform clean_golangci-lint
+clean:   clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot clean_docker clean_terraform clean_golangci-lint
 
 # Purge removes the common cache folder created by various tools.
 purge: clean
@@ -307,10 +307,10 @@ upload_gpg_keys: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
 git_gpg_update: .git_gpg_update
 .git_gpg_update:
 	@key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp ${SHELL_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
+	cp ${GPG_TEMPLATES_DIR}/.gitconfig.qnlbnsl.template ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	echo "  signingKey = $$key1" | tee -a ${SHELL_DIR}/.gitconfig.qnlbnsl; \
 	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | grep 'sec' | grep -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp ${SHELL_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
+	cp ${GPG_TEMPLATES_DIR}/.gitconfig.immertec.template ${SHELL_DIR}/.gitconfig.immertec; \
 	echo "  signingKey = $$key2" | tee -a ${SHELL_DIR}/.gitconfig.immertec; \
 	touch $@; \
 	$(MAKE) gitsetup
