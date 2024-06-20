@@ -19,8 +19,6 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.autoload		\
 			.editorconfig	\
 			.gitconfig		\
-			.gitconfig.qnlbnsl \
-			.gitconfig.immertec \
 			.gitignore.global \
 			.p10k.zsh		\
 			.profile		\
@@ -207,6 +205,9 @@ ${HOME}/.config/sheldon/plugins.toml: ${SHELL_DIR}/.config/sheldon/plugins.toml
 clean_link_.config/sheldon/plugins.toml:
 	@[ -L ${HOME}/.config/sheldon/plugins.toml ] && ${RM} ${HOME}/.config/sheldon/plugins.toml || true
 
+
+${HOME}/.gitconfig.qnlbnsl: 
+
 ######################################################################################################################################################
 ##################################################################### SSH ############################################################################
 ######################################################################################################################################################
@@ -237,7 +238,11 @@ import_ssh_keys_service: /etc/systemd/system/import-ssh-keys.service /etc/system
 gitsetup: ${HOME}/.gitconfig.local
 ${HOME}/.gitconfig.local: ${SHELL_DIR}/.gitconfig.qnlbnsl
 	ln -f -s $< $@
+${SHELL_DIR}/.gitconfig.qnlbnsl: git_gpg_update
+	
 clean: clean_link_.gitconfig.local
+
+
 
 # Define paths to important files
 SOURCES_LIST=/etc/apt/sources.list.d/github-cli.list
