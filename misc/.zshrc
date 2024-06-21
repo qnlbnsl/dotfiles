@@ -121,8 +121,8 @@ autoload -Uz timezsh
 autoload -Uz unsetaws
 # Load more autocompletions.
 autoload -U +X bashcompinit && bashcompinit
-complete -o nospace -C ${HOME}/go/bin/terraform terraform
-complete -o nospace -C ${HOME}/go/bin/vault vault
+complete -o nospace -C $(which terraoform) terraform
+# complete -o nospace -C ${HOME}/go/bin/vault vault
 
 
 
