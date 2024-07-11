@@ -2,7 +2,7 @@
 
 # Use most as pager (for things like man, git diff, etc).
 export PAGER=most
-
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:$LD_LIBRARY_PATH 
 # Use vscode as default editor.
 export EDITOR=code
 
