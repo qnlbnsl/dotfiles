@@ -11,7 +11,6 @@ source $HOME/.aliases
 # Disable completion security check as it is too slow. Don't manually add any completions before checking them.
 ZSH_DISABLE_COMPFIX=true
 
-
 # Enable shared history so we can reference history between terms.
 setopt share_history
 # Save each command in history to make sure we don't loose it.
