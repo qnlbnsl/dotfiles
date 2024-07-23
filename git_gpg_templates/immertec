@@ -1,12 +1,14 @@
 %echo Generating a basic OpenPGP key
-     Key-Type: RSA
-     Key-Length: 4096
-     Subkey-Type: RSA
-     Subkey-Length: 4096
-     Name-Real: Kunal Bansal
-     Name-Comment: ""
-     Name-Email: kunal@immertec.com
-     Expire-Date: 0
-     # Do a commit here, so that we can later print "done" :-)
-     %commit
+	Key-Type: RSA
+	Key-Length: 4096
+	Subkey-Type: RSA
+	Subkey-Length: 4096
+	Name-Real: Kunal Bansal
+	Name-Comment: ""
+	Name-Email: kunal@immertec.com
+	Expire-Date: 0
+	# Uncomment to remove the passphrase
+	# Passphrase: ""
+	# Do a commit here, so that we can later print "done" :-)
+	%commit
 %echo done

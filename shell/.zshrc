@@ -20,7 +20,7 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 CASE_SENSITIVE="true"
 
 # Load oh-my-zsh.
-export ZSH=~/.oh-my-zsh
+export ZSH=${HOME}/.oh-my-zsh
 source $ZSH/oh-my-zsh.sh
 
 # Detect SSH session and set SSH agent-forwarding accordingly
@@ -29,12 +29,12 @@ if [[ -n "$SSH_CLIENT" || -n "$SSH_CONNECTION" ]]; then
 fi
 
 # Load files for  functions
-fpath=( ~/.zsh_functions "${fpath[@]}" )
+fpath=( ${HOME}/.zsh_functions "${fpath[@]}" )
 
 source $HOME/.autoload
 
 # Load the private config if set.
-[ -f ~/.zshrc_priv_config ] && source ~/.zshrc_priv_confi
+[ -f ${HOME}/.zshrc_priv_config ] && source ${HOME}/.zshrc_priv_confi
 
 export NVM_DIR="$HOME/.nvm"
 
@@ -47,7 +47,7 @@ connectaws () {
   eval "$(assumerole -f env $1)"
 }
 
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ${HOME}/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
@@ -59,8 +59,8 @@ if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
   rl
 fi
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+# To customize prompt, run `p10k configure` or edit ${HOME}/.p10k.zsh.
+[[ ! -f ${HOME}/.p10k.zsh ]] || source ${HOME}/.p10k.zsh
 # load plugins here. Ideally this should not produce console output.
 eval "$(sheldon source)"
 

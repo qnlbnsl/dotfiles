@@ -1,6 +1,6 @@
 USER ?= $(shell whoami)
 HOME ?= $(shell [ -d "/Users/${USER}" ] && echo /Users/${USER} || echo /home/${USER})
-MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST)))) # has a trailing slash so use without it in path.
 BASE_DIR := $(abspath $(MAKEFILE_DIR)/../..)
 GPG_TEMPLATES_DIR := $(BASE_DIR)/git_gpg_templates
 SHELL_DIR := $(BASE_DIR)/shell
@@ -35,10 +35,10 @@ LINKS_CLEAN   = ${LINKS_SRCS:%=clean_link_%}
 
 # List of file/dirs to nuke when calling 'make purge'.
 PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .parallel \
-             .psql_history .python_history .wget-hsts .node_repl_history \
-             .yarnrc .zcompdump* .sudo_as_admin_successful .xsession-errors .lesshst \
-             .config/yarn .texlive* .java .refresh .ssh_known_hosts .boto \
-             .sudo_as_admin_successful .pm2 .pm2-dev .qt .nx .ipython .clang-tools .bash_logout .viminfo
+			.psql_history .python_history .wget-hsts .node_repl_history \
+			.yarnrc .zcompdump* .sudo_as_admin_successful .xsession-errors .lesshst \
+			.config/yarn .texlive* .java .refresh .ssh_known_hosts .boto \
+			.sudo_as_admin_successful .pm2 .pm2-dev .qt .nx .ipython .clang-tools .bash_logout .viminfo
 
 # Default to install target.
 all: install
@@ -53,13 +53,13 @@ purge: clean
 # Phony targets.
 .PHONY: all shell install clean purge \
 		check_docker docker clean_docker \
-        gitsetup clean_link_.gitconfig.local \
-        import_ssh_keys import_ssh_keys_service \
-        omz clean_.oh-my-zsh sheldon clean_.sheldon \
-        tpm clean_.tpm nvm clean_.nvm go clean_.goroot \
-        golangci-lint clean_golangci-lint terraform clean_terraform \
-        github github-login github-login-gpg gpg_setup gpg_setup_export upload_gpg_keys git_gpg_update \
-        locales clean_file_% clean_link_%
+		gitsetup clean_link_.gitconfig.local \
+		import_ssh_keys import_ssh_keys_service \
+		omz clean_.oh-my-zsh sheldon clean_.sheldon \
+		tpm clean_.tpm nvm clean_.nvm go clean_.goroot \
+		golangci-lint clean_golangci-lint terraform clean_terraform \
+		github github-login github-login-gpg gpg_setup gpg_setup_export upload_gpg_keys git_gpg_update \
+		locales clean_file_% clean_link_%
 
 
 ######################################################################################################################################################
@@ -119,7 +119,7 @@ clean_docker:
 	@sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 clean_.check_docker:
-	${RM} .check_docker 
+	${RM} .check_docker
 
 ######################################################################################################################################################
 # Install golangci-lint.
@@ -184,6 +184,12 @@ clean: ${LINKS_CLEAN}
 clean_link_%:
 	@[ -L ${HOME}/$* ] && ${RM} ${HOME}/$* || true
 
+# Link OS Specific ZSHENV file
+${HOME}/.zshenv: ${MAKEFILE_DIR}.zshenv
+	ln -f -s ${MAKEFILE_DIR}/.zshenv $@
+clean_link_.zshenv:
+	@[ -L ${HOME}/.zshenv ] && ${RM} ${HOME}/.zshenv || true
+
 # Make sure we have a ~/.ssh dir for linking ~/.ssh/config
 ${HOME}/.ssh/config: ${SSH_DIR}/config
 	@mkdir -p $(dir $@)
@@ -206,7 +212,7 @@ clean_link_.config/sheldon/plugins.toml:
 	@[ -L ${HOME}/.config/sheldon/plugins.toml ] && ${RM} ${HOME}/.config/sheldon/plugins.toml || true
 
 
-${HOME}/.gitconfig.qnlbnsl: 
+${HOME}/.gitconfig.qnlbnsl:
 
 ######################################################################################################################################################
 ##################################################################### SSH ############################################################################
@@ -239,7 +245,7 @@ gitsetup: ${HOME}/.gitconfig.local
 ${HOME}/.gitconfig.local: ${SHELL_DIR}/.gitconfig.qnlbnsl
 	ln -f -s $< $@
 ${SHELL_DIR}/.gitconfig.qnlbnsl: git_gpg_update
-	
+
 clean: clean_link_.gitconfig.local
 
 
@@ -274,11 +280,11 @@ $(KEYRING):
 	@curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=$@
 	@sudo chmod go+r $@
 
-github-login: github	
-	@gh auth login		
+github-login: github
+	@gh auth login
 
-github-login-gpg: github	
-	@gh auth login -s write:gpg_key		
+github-login-gpg: github
+	@gh auth login -s write:gpg_key
 
 # Generate GPG keys
 gpg_setup: $(GPG_QNLBNSL_KEY) $(GPG_IMMERTEC_KEY)
@@ -304,7 +310,7 @@ $(EXPORT_IMMERTEC_PROXY): $(GPG_IMMERTEC_KEY)
 
 upload_gpg_keys: $(EXPORT_QNLBNSL_PROXY) $(EXPORT_IMMERTEC_PROXY)
 	@echo "Uploading GPG keys to GitHub..."
-	gh gpg-key add $(EXPORT_QNLBNSL_PROXY) 
+	gh gpg-key add $(EXPORT_QNLBNSL_PROXY)
 	gh gpg-key add $(EXPORT_IMMERTEC_PROXY)
 	rm -rf $(EXPORT_QNLBNSL_PROXY)
 	rm -rf $(EXPORT_IMMERTEC_PROXY)
@@ -324,13 +330,12 @@ git_gpg_update: .git_gpg_update
 # Setup locales
 locales:
 	@sudo locale-gen en_US.UTF-8 && \
-  	export LC_ALL=C.UTF-8 && \
-  	export LANG=C.UTF-8 && \
-  	sudo EDITOR="sed -Ei ' \
-    	s|locales/locales_to_be_generated=.+|locales/locales_to_be_generated=\"en_US.UTF-8 UTF-8\"|; \
-    	s|locales/default_environment_locale=.+|locales/default_environment_locale=\"en_US.UTF-8\"| \
-    	'" dpkg-reconfigure -f editor locales
-
+	export LC_ALL=C.UTF-8 && \
+	export LANG=C.UTF-8 && \
+	sudo EDITOR="sed -Ei ' \
+		s|locales/locales_to_be_generated=.+|locales/locales_to_be_generated=\"en_US.UTF-8 UTF-8\"|; \
+		s|locales/default_environment_locale=.+|locales/default_environment_locale=\"en_US.UTF-8\"| \
+		'" dpkg-reconfigure -f editor locales
 
 ######################################################################################################################################################
 

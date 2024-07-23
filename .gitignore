@@ -15,3 +15,7 @@ gh/
 
 installers/linux/.git_gpg_update
 installers/linux/@
+shell/.config/raycast/*
+shell/.config/neofetch/config.conf
+shell/.config/configstore/update-notifier-npm.json
+shell/.zshenv
