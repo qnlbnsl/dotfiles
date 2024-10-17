@@ -28,7 +28,7 @@ status = true
 ff = only
 
 [gpg]
-program = /usr/local/bin/gpg
+program = /usr/bin/gpg
 
 [commit]
 gpgsign = true
