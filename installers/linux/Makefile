@@ -1,7 +1,8 @@
 USER ?= $(shell whoami)
 HOME ?= $(shell [ -d "/Users/${USER}" ] && echo /Users/${USER} || echo /home/${USER})
 MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST)))) # has a trailing slash so use without it in path.
-BASE_DIR := $(abspath $(MAKEFILE_DIR)/../..)
+# BASE_DIR := $(abspath $(MAKEFILE_DIR)/../..)
+BASE_DIR := $(shell git -C $(MAKEFILE_DIR) rev-parse --show-toplevel)
 GPG_TEMPLATES_DIR := $(BASE_DIR)/git_gpg_templates
 SHELL_DIR := $(BASE_DIR)/shell
 SSH_DIR := $(BASE_DIR)/.ssh
@@ -24,7 +25,6 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.profile		\
 			.tmux.conf		\
 			.zprofile		\
-			.zshenv			\
 			.zshrc			\
 			.ssh/config		\
 			.zsh_functions	\
@@ -176,8 +176,20 @@ clean_file_%:
 ################################################################### LINKS ############################################################################
 ######################################################################################################################################################
 # Place symlink from home to here.
+# Place symlink from home to here.
 install: ${LINKS_TARGETS}
+
+debug:
+	@echo "MAKEFILE_DIR: ${MAKEFILE_DIR}"
+	@echo "BASE_DIR: ${BASE_DIR}"
+	@echo "HOME: ${HOME}"
+	@echo "SHELL_DIR: ${SHELL_DIR}"
+	@echo "LINKS_SRCS: ${LINKS_SRCS}"
+	@echo "LINKS_TARGETS: ${LINKS_TARGETS}"
+	@echo "Installing links..."
+
 ${HOME}/%: ${SHELL_DIR}/%
+	echo "Linking $< to $@"
 	ln -f -s $< $@
 # Remove the symlinks only if they are still symlink.
 clean: ${LINKS_CLEAN}
