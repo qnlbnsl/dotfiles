@@ -83,22 +83,12 @@ setup_locales() {
 }
 setup_keyrings() {
   # Nala.
-  echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
-  wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
   # Github.
   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
   sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
 }
-setup_nala() {
-  sudo apt-get update
-  if sudo apt-get --simulate install nala; then
-    sudo apt-get install nala -y
-  else
-    sudo apt-get install nala-legacy -y
-  fi
-  printf '1 2 3' | sudo nala fetch -y
-}
+
 nvm_setup() {
   source "${HOME}/.nvm/nvm.sh"
   nvm install 14
@@ -219,9 +209,8 @@ update_fs() {
 # TODO: remove curl dependency
 setup_keyrings
 
-type -p nala >/dev/null || setup_nala
-sudo nala update
-sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
+sudo apt-get update
+sudo apt-get install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
 make install
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
@@ -235,7 +224,7 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
+  sudo apt-get install -y watch htop unzip python3-pip rsync git-lfs jq gh
   # Install Tailscale
   type -p tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sudo sh
 
@@ -252,4 +241,4 @@ else
 fi
 sudo chsh -s /usr/bin/zsh "$(whoami)"
 # last but not least we shall upgrade everything else.
-sudo nala upgrade -y
+sudo apt-get upgrade -y
