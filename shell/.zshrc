@@ -34,7 +34,7 @@ fpath=( ${HOME}/.zsh_functions "${fpath[@]}" )
 source $HOME/.autoload
 
 # Load the private config if set.
-[ -f ${HOME}/.zshrc_priv_config ] && source ${HOME}/.zshrc_priv_confi
+[ -f ${HOME}/.zshrc_priv_config ] && source ${HOME}/.zshrc_priv_config
 
 export NVM_DIR="$HOME/.nvm"
 

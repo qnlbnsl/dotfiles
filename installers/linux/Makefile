@@ -26,6 +26,7 @@ LINKS_SRCS=	.oh-my-zsh		\
 			.tmux.conf		\
 			.zprofile		\
 			.zshrc			\
+			.zshenv			\
 			.ssh/config		\
 			.zsh_functions	\
 			.config/sheldon/plugins.toml
@@ -180,13 +181,13 @@ clean_file_%:
 install: ${LINKS_TARGETS}
 
 debug:
-	@echo "MAKEFILE_DIR: ${MAKEFILE_DIR}"
-	@echo "BASE_DIR: ${BASE_DIR}"
-	@echo "HOME: ${HOME}"
-	@echo "SHELL_DIR: ${SHELL_DIR}"
+	@echo "MAKEFILE_LIST: \"${MAKEFILE_LIST}\""
+	@echo "HOME: \"${HOME}\""
+	@echo "BASE_DIR: \"${BASE_DIR}\""
+	@echo "SHELL_DIR: \"${SHELL_DIR}\""
+	@echo "MAKEFILE_DIR: \"$(strip ${MAKEFILE_DIR})\""
 	@echo "LINKS_SRCS: ${LINKS_SRCS}"
 	@echo "LINKS_TARGETS: ${LINKS_TARGETS}"
-	@echo "Installing links..."
 
 ${HOME}/%: ${SHELL_DIR}/%
 	echo "Linking $< to $@"
@@ -198,7 +199,7 @@ clean_link_%:
 
 # Link OS Specific ZSHENV file
 ${HOME}/.zshenv: ${MAKEFILE_DIR}.zshenv
-	ln -f -s ${MAKEFILE_DIR}/.zshenv $@
+	ln -f -s $(strip ${MAKEFILE_DIR})/.zshenv $@
 clean_link_.zshenv:
 	@[ -L ${HOME}/.zshenv ] && ${RM} ${HOME}/.zshenv || true
 
