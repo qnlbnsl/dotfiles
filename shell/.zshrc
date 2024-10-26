@@ -2,6 +2,8 @@
 
 export TMUX_TZ=$(date +%Z)
 export COLORTERM=truecolor
+export GPG_PROGRAM=$(which gpg)
+export GPG_TTY=$(tty)
 # User config.
 
 source $HOME/.aliases

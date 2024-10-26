@@ -1,7 +1,7 @@
 USER ?= $(shell whoami)
 HOME ?= $(shell [ -d "/Users/${USER}" ] && echo /Users/${USER} || echo /home/${USER})
 MAKEFILE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST)))) # has a trailing slash so use without it in path.
-BASE_DIR := $(realpath $(strip $(MAKEFILE_DIR))../..)
+BASE_DIR := $(shell git -C $(MAKEFILE_DIR) rev-parse --show-toplevel)
 GPG_TEMPLATES_DIR := $(BASE_DIR)/git_gpg_templates
 SHELL_DIR := $(BASE_DIR)/shell
 SSH_DIR := $(BASE_DIR)/.ssh
@@ -203,6 +203,8 @@ clean_file_%:
 ################################################################### LINKS ############################################################################
 ######################################################################################################################################################
 # Place symlink from home to here.
+debug:
+	@echo \"$(strip ${MAKEFILE_DIR})\"
 install: ${LINKS_TARGETS}
 ${HOME}/%: ${SHELL_DIR}/%
 	ln -f -s $< $@
@@ -212,8 +214,8 @@ clean_link_%:
 	@[ -L ${HOME}/$* ] && ${RM} ${HOME}/$* || true
 
 # Link OS Specific ZSHENV file
-${HOME}/.zshenv: ${MAKEFILE_DIR}/.zshenv
-		ln -f -s .zshenv $@
+${HOME}/.zshenv: $(strip ${MAKEFILE_DIR}).zshenv
+		ln -f -s $< $@
 clean_link_.zshenv:
 	@[ -L ${HOME}/.zshenv ] && ${RM} ${HOME}/.zshenv || true
 
