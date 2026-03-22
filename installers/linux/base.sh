@@ -2,101 +2,89 @@
 
 set -e
 
-user=$(whoami)
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+repo_root=$(git -C "$script_dir" rev-parse --show-toplevel)
 
-# Proxmox Specific
+# Proxmox detection
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
-  echo "We are using Proxmox"
-  # Sync time
-  sudo hwclock --hctosys
-  # Use PVE Tools to setup proxmox
-  bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/post-pve-install.sh)"
-  echo "Please visit https://tteck.github.io/Proxmox/ for more tools"
+  echo "Proxmox detected."
+  make -C "$repo_root" pve-setup
 fi
 
-# Install sudo if needed
+# Bootstrap: install sudo + minimal deps needed before make can run.
 if ! hash sudo 2>/dev/null; then
   apt-get update
   apt-get install -y sudo
 fi
+sudo apt-get install -y git curl make dialog
 
-sudo apt install -y git curl make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential dialog
-
-if [[ $user == "root" ]]; then  
-  # Ask if the user wants to create a new user
-  dialog --yesno "Do you want to create a new user?" 7 60
-  response=$?
-  clear
-
-  if [ $response -eq 0 ]; then
-    # Source the user creation script
+# User creation (if running as root)
+if [[ $(whoami) == "root" ]]; then
+  dialog --yesno "Do you want to create a new user?" 7 60 && {
     source "${script_dir}/shell_functions/setup_user.sh"
     create_new_user
-    echo "Please exit and log in with the new user. Aborting the script."
+    echo "Please exit and log in with the new user. Then re-run this script."
     exit 0
-  fi
+  } || true
+  clear
 fi
 
-mkdir -p $HOME/.local/bin
-# Define an associative array for package descriptions
+mkdir -p "$HOME/.local/bin"
+
+# TUI for selecting make targets
 declare -A descriptions=(
-  ["shell"]="Shell Dotfiles"
-  ["go"]="Go Language"
-  ["golangci-lint"]="Go Linter"
-  ["docker"]="Docker Container Engine"
-  ["terraform"]="Infrastructure as Code Tool"
-  ["github"]="Setup GitHub and GPG keys"
-  ["locales"]="Setup locales for the system"
+  ["install"]="Shell + packages (default)"
+  ["go"]="Go language"
+  ["golangci-lint"]="Go linter"
+  ["docker"]="Docker"
+  ["terraform"]="Terraform"
+  ["github"]="Setup GitHub CLI"
+  ["locales"]="Setup locales"
+  ["sysctl-tune"]="Tune fs watchers / max files"
 )
 
-# Generate a checklist array for the main dialog
 checklist=()
 for key in "${!descriptions[@]}"; do
   checklist+=("$key" "${descriptions[$key]}" "off")
 done
 
-# Show main dialog menu and get user selections
 user_choices=$(dialog --clear \
-  --backtitle "Package Installation" \
+  --backtitle "Dotfiles Setup" \
   --no-cancel \
-  --title "Select Packages to Install" \
-  --checklist "Use SPACE to select packages and ENTER to confirm:" \
+  --title "Select targets to install" \
+  --checklist "Use SPACE to select, ENTER to confirm:" \
   20 60 10 \
   "${checklist[@]}" \
   2>&1 >/dev/tty)
 
 clear
 
-# Check if GitHub was selected and show sub-dialog if needed
+# GitHub sub-dialog
 if echo "$user_choices" | grep -q "github"; then
-  # Define an associative array for GitHub-related tasks
   declare -A github_tasks=(
     ["github"]="Install GitHub CLI"
     ["github-login"]="Login to GitHub"
-    ["gpg_setup"]="Create GPG Keys"
-    ["upload_gpg_keys"]="Upload GPG Keys to GitHub"
+    ["gpg_setup"]="Generate GPG keys"
+    ["upload_gpg_keys"]="Upload keys to GitHub"
   )
 
-  # Generate a checklist array for the GitHub dialog
   github_checklist=()
   for key in "${!github_tasks[@]}"; do
     github_checklist+=("$key" "${github_tasks[$key]}" "off")
   done
 
-  # Show GitHub dialog menu and get user selections
   github_choices=$(dialog --clear \
     --backtitle "GitHub Setup" \
     --no-cancel \
-    --title "Select GitHub Tasks to Perform" \
-    --checklist "Use SPACE to select tasks and ENTER to confirm:" \
+    --title "Select GitHub Tasks" \
+    --checklist "Use SPACE to select, ENTER to confirm:" \
     20 60 10 \
     "${github_checklist[@]}" \
     2>&1 >/dev/tty)
 
   clear
 
-  # Handle GitHub task dependencies and login task switching
+  # Resolve dependencies
   if echo "$github_choices" | grep -q "upload_gpg_keys"; then
     github_choices="github github-login-gpg gpg_setup upload_gpg_keys"
   elif echo "$github_choices" | grep -q "gpg_setup"; then
@@ -107,20 +95,12 @@ if echo "$user_choices" | grep -q "github"; then
   user_choices+=" $github_choices"
 fi
 
-# Handle user selections
+# Run selected targets via root Makefile
 for choice in $user_choices; do
-  echo "Installing $choice..."
-  make $choice
+  echo "==> make $choice"
+  make -C "$repo_root" "$choice"
 done
 
-echo "Finishing up..."
-# Helps in general... Especially when coding in react
-# Increasing max watchers to 65535
-maxfiles="fs.file-max = 65535"
-# Increasing max watchers. Each file watch consumes up to 1080 bytes.
-# 524288 will be able to use up to 540MB
-maxwatches="fs.inotify.max_user_watches=524288"
-echo $maxfiles | sudo tee -a /etc/sysctl.conf
-echo $maxwatches | sudo tee -a /etc/sysctl.conf
-sudo chsh -s /usr/bin/zsh "$(whoami)"
-echo "Done! Please reboot the system to apply changes orrrrrrr exit the ssh session and log back in."
+# Always set zsh as default shell
+make -C "$repo_root" set-shell
+echo "Done! Log out and back in (or reboot) to apply changes."

@@ -13,9 +13,23 @@ gh/
 .gitconfig.qnlbnsl
 .bashrc
 
+# GPG update marker files
+.git_gpg_update
 installers/linux/.git_gpg_update
+installers/osx/.git_gpg_update
 installers/linux/@
-shell/.config/raycast/*
-shell/.config/neofetch/config.conf
-shell/.config/configstore/update-notifier-npm.json
+
+# Build intermediates
+terraform.zip
+
+# Shared shell config (OS-specific .zshenv lives in installers/)
 shell/.zshenv
+
+# Sheldon lock/cache (only track the config)
+shell/.config/**/*
+!shell/.config/sheldon
+
+# AI Agents
+.omc
+.claude
+.ssh/config

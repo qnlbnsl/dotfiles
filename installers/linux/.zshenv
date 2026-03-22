@@ -2,19 +2,24 @@
 
 # Use most as pager (for things like man, git diff, etc).
 export PAGER=most
-export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:$LD_LIBRARY_PATH 
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:$LD_LIBRARY_PATH
 # Use vscode as default editor.
-export EDITOR=code
+export EDITOR=cursor
 
 # Enable go mod.
 export GO111MODULE=on
 
-export ZPLUG_HOME=~/.zplug
-export GO_PATH=~/.goroot/bin
-export GO_PKG_PATH=$GO_PATH/pkg
-export YARN_PATH=$HOME/.yarn/bin
+# Build PATH dynamically — only add directories that exist.
+typeset -U PATH path
 
-export PATH=$GO_PATH:$GO_PKG_PATH:$HOME/.local/bin:$YARN_PATH:/usr/local/bin:/usr/local/sbin:$PATH
+[ -d ~/.goroot/bin ]         && export GO_PATH=~/.goroot/bin && path=($GO_PATH $path)
+[ -d ~/.goroot/bin/pkg ]     && export GO_PKG_PATH=~/.goroot/bin/pkg && path=($GO_PKG_PATH $path)
+[ -d "$HOME/.yarn/bin" ]     && path=("$HOME/.yarn/bin" $path)
+[ -d "$HOME/.local/bin" ]    && path=("$HOME/.local/bin" $path)
+[ -d "$HOME/.cargo/bin" ]    && export CARGO_HOME="$HOME/.cargo" && path=("$CARGO_HOME/bin" $path)
+[ -d /usr/local/bin ]        && path=(/usr/local/bin /usr/local/sbin $path)
+
+export PATH
 
 fpath=(
   ~/.zsh_functions

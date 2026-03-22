@@ -8,12 +8,13 @@ autoload -Uz timezsh
 autoload -Uz unsetaws
 
 # Load more autocompletions.
-# Uncomment o enable bash ccompinit mode
+# Uncomment to enable bash compinit mode
 # autoload -U +X bashcompinit && bashcompinit
 autoload -Uz compinit
 for dump in ~/.zcompdump(N.mh+24); do
   compinit
 done
 compinit -C
-complete -o nospace -C $(which terraform) terraform
-# complete -o nospace -C ${HOME}/go/bin/vault vault
+if command -v terraform >/dev/null 2>&1; then
+  complete -o nospace -C "$(which terraform)" terraform
+fi
