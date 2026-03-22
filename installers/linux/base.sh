@@ -3,7 +3,22 @@
 set -e
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
-repo_root=$(git -C "$script_dir" rev-parse --show-toplevel)
+
+# Resolve repo root without git — bootstrap installs git later; set -e would exit
+# before apt-get if git were missing here.
+repo_root=
+d=$script_dir
+while [[ "$d" != / ]]; do
+  if [[ -d "$d/.git" || -f "$d/.git" ]]; then
+    repo_root=$(cd "$d" && pwd -P)
+    break
+  fi
+  d=$(dirname "$d")
+done
+if [[ -z "$repo_root" ]]; then
+  echo "error: could not find a git repository above $script_dir" >&2
+  exit 1
+fi
 
 # Proxmox detection
 if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then

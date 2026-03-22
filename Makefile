@@ -25,6 +25,7 @@ UNAME_M := $(shell uname -m)
 
 ifeq ($(UNAME_S),Darwin)
   OS       := darwin
+  # Skip Intel Macs as they are being deprecated.
   ARCH     := arm64
   GREP_P   := ggrep
   PLATFORM := osx
