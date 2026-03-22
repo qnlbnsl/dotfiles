@@ -32,7 +32,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
              .pm2 .pm2-dev .qt .nx .ipython .clang-tools .bash_logout .viminfo
 
 # ── Default install (platforms extend this via additional install: lines)
-install: $(LINKS_TARGETS) omz sheldon tpm nvm import_ssh_keys
+install: $(LINKS_TARGETS) omz sheldon tpm nvm import_ssh_keys git-hide-local
 
 # ── Clean / Purge ────────────────────────────────────────────────────
 clean: $(LINKS_CLEAN) clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot \
@@ -42,7 +42,7 @@ purge: clean
 	cd $(HOME); $(RM) -r $(PURGE_LIST)
 
 # ── Phony targets ────────────────────────────────────────────────────
-.PHONY: all install clean purge debug \
+.PHONY: all install clean purge debug git-hide-local \
         omz clean_.oh-my-zsh sheldon clean_.sheldon \
         tpm clean_.tpm nvm clean_.nvm \
         go clean_.goroot golangci-lint clean_golangci-lint \
@@ -197,6 +197,14 @@ clean_file_%:
 # ══════════════════════════════════════════════════════════════════════
 #  SSH
 # ══════════════════════════════════════════════════════════════════════
+
+# Keep local edits to tracked files out of git status.
+# Undo with: git update-index --no-skip-worktree <file>
+git-hide-local:
+	@if [ -d $(BASE_DIR)/.git ] && [ -f $(BASE_DIR)/.ssh/config ]; then \
+		git -C $(BASE_DIR) update-index --skip-worktree .ssh/config; \
+	fi
+
 import_ssh_keys: $(HOME)/.ssh/authorized_keys
 $(HOME)/.ssh/authorized_keys:
 	@mkdir -p $(dir $@)
