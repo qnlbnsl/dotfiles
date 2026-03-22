@@ -4,8 +4,7 @@
 # ── Symlinks ─────────────────────────────────────────────────────────
 # Files in shell/ that get symlinked to ~/
 # NOTE: .zshenv is handled separately per-platform (see ZSHENV_SRC).
-LINKS_SRCS = .oh-my-zsh \
-             .aliases \
+LINKS_SRCS = .aliases \
              .android \
              .autoload \
              .editorconfig \
