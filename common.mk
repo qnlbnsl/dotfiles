@@ -16,7 +16,6 @@ LINKS_SRCS = .aliases \
              .zprofile \
              .zshenv \
              .zshrc \
-             .ssh/config \
              .zsh_functions \
              .config/sheldon/plugins.toml
 
@@ -31,7 +30,8 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
              .pm2 .pm2-dev .qt .nx .ipython .clang-tools .bash_logout .viminfo
 
 # ── Default install (platforms extend this via additional install: lines)
-install: $(LINKS_TARGETS) omz sheldon tpm nvm import_ssh_keys git-hide-local
+# .ssh/config lives at repo .ssh/config (not shell/.ssh); see $(HOME)/.ssh/config rule below.
+install: $(LINKS_TARGETS) $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local
 
 # ── Clean / Purge ────────────────────────────────────────────────────
 clean: $(LINKS_CLEAN) clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot \
@@ -169,6 +169,11 @@ clean_.cargo:
 
 # Generic rule: link shell dotfiles to ~/
 $(HOME)/%: $(SHELL_DIR)/%
+	@mkdir -p $(dir $@)
+	ln -f -s $< $@
+
+# SSH config is tracked at $(BASE_DIR)/.ssh/config, not under shell/
+$(HOME)/.ssh/config: $(SSH_DIR)/config
 	@mkdir -p $(dir $@)
 	ln -f -s $< $@
 
