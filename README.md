@@ -1,149 +1,107 @@
-# Bootstrap
+# Dotfiles
 
-## Thanks to @creack for this amazing repo :)
+Cross-platform dotfiles for macOS (ARM64), Debian/Ubuntu, and Arch Linux.
+
+## Quickstart
+
+```sh
+git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
+cd ~/.dotfiles
+make
+```
+
+On a fresh **Debian/Ubuntu** box (as root or with sudo):
+
+```sh
+git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
+chmod +x ~/.dotfiles/installers/linux/base.sh
+~/.dotfiles/installers/linux/base.sh
+```
+
+## What `make` installs
+
+The default `install` target sets up:
+
+- **zsh** with oh-my-zsh + Powerlevel10k theme
+- **sheldon** plugin manager (zsh-autosuggestions, zsh-syntax-highlighting, etc.)
+- **tpm** (tmux plugin manager)
+- **nvm** (Node version manager, lazy-loaded)
+- **Symlinks** from `shell/` to `~/` (.zshrc, .gitconfig, .tmux.conf, etc.)
+- **SSH keys** imported from GitHub
+- **OS packages** via Homebrew (macOS), apt (Debian), or pacman (Arch)
+
+## Additional targets
+
+| Target | Description |
+|--------|-------------|
+| `make go` | Install Go (version from `versions/go`) |
+| `make go-tools` | Install ccat + assumerole via `go install` |
+| `make terraform` | Install Terraform (version from `versions/terraform`) |
+| `make golangci-lint` | Install golangci-lint (version from `versions/golangci-lint`) |
+| `make cargo` | Install Rust via rustup |
+| `make yq` | Install yq YAML processor |
+| `make docker` | Install Docker (Linux only) |
+| `make github` | Install GitHub CLI |
+| `make github-login` | Authenticate with GitHub |
+| `make gpg_setup` | Generate GPG keys |
+| `make upload_gpg_keys` | Upload GPG keys to GitHub |
+| `make gitsetup` | Link gitconfig.local profile |
+| `make debug` | Print detected OS, arch, and paths |
+| `make clean` | Remove installed components |
+| `make purge` | Clean + nuke caches |
+
+### Debian/Ubuntu only
+
+| Target | Description |
+|--------|-------------|
+| `make locales` | Setup en_US.UTF-8 locale |
+| `make sysctl-tune` | Increase file watchers and max open files |
+| `make pve-setup` | Proxmox VE post-install setup |
+| `make set-shell` | Set default shell to zsh |
+| `make create-user USERNAME=foo` | Create user with sudo NOPASSWD |
+
+### Arch Linux only
+
+| Target | Description |
+|--------|-------------|
+| `make set-shell` | Set default shell to zsh |
+| `make create-user USERNAME=foo` | Create user with sudo NOPASSWD |
+| `make omarchy` | Omarchy UI setup (customize in `arch.mk`) |
+
+## Updating tool versions
+
+```sh
+echo "1.22.3" > versions/go && make go
+echo "1.14.5" > versions/terraform && make terraform
+echo "1.58.1" > versions/golangci-lint && make golangci-lint
+```
+
+## Structure
+
+```
+.dotfiles/
+├── Makefile              Root dispatcher (auto-detects OS + arch)
+├── common.mk             Shared targets
+├── installers/
+│   ├── osx/
+│   │   ├── osx.mk        macOS: Homebrew, ARM64
+│   │   └── .zshenv        macOS-specific env
+│   └── linux/
+│       ├── debian.mk      Debian/Ubuntu: apt, gh repo, docker
+│       ├── arch.mk         Arch: pacman, omarchy
+│       ├── base.sh         Interactive TUI installer for Debian
+│       └── .zshenv         Linux-specific env
+├── shell/                 Shared dotfiles (symlinked to ~/)
+├── versions/              Pinned tool versions
+├── git_gpg_templates/     GPG key templates
+└── .ssh/                  SSH config
+```
 
 ## Dependencies
 
-- git
-- curl
-- make
+- git, curl, make (bootstrap)
+- Everything else is installed by `make`
 
-## Dotfiles
+## Thanks
 
-quickstart
-
-```sh
-git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
-cd ~/.dotfiles
-chmod +x ubuntu.sh
-./ubuntu.sh
-```
-
-Running `make`
-
-```sh
-git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
-cd ~/.dotfiles
-make -j
-```
-
-Note that the Makefile manages:
-
-- go
-- oh-my-zsh
-- nvm
-- docker
-- zplug
-- powerlevel10k
-
-## Configurations
-
-## Linux Specific
-
-### Set default shell
-
-```sh
-chsh -s /usr/bin/zsh $(whoami)
-```
-
-### Setup sudo
-
-As root:
-
-```sh
-apt-get update && apt-get install -y sudo
-user=qnlbnsl
-echo "$user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-primary-user
-```
-
-### Install Docker
-
-```sh
-make docker
-```
-
-## OSX Specific
-
-### Whitelist Brew's zsh / set default shell
-
-```sh
-sudo sh -c 'echo /usr/local/bin/zsh >> /etc/shells'
-chsh -s /usr/local/bin/zsh $(whoami)
-```
-
-### Install Homebrew
-
-Note that Apple announced they will remove ruby from OSX by default. Will need to update how to install brew.
-
-```sh
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-```
-
-### Install Docker Manually
-
-```sh
-brew cask install virtualbox
-brew install docker docker-machine docker-compose
-docker-machine create --driver=virtualbox --virtualbox-disk-size=200000 --virtualbox-cpu-count=4 default
-eval "$(docker-machine env)"
-docker ps
-```
-
-### Set proper hostname
-
-1. System Preferences -> Sharing -> Computer's Name
-
-### Update keyboard settings
-
-1. System Preferences -> Keyboard -> Key Repeat -> Set to Fast
-2. System Preferences -> Keyboard -> Delay Until Repeat -> Set to Short
-
-### Update trackpad settings
-
-1. System Preferences -> Trackpad -> Tap to click -> Enable
-2. System Preferences -> Trackpad -> Tracking speed -> Set to Fast
-
-### Set proper screen resolution
-
-1. System Preferences -> Displays -> Resolution: Scaled -> More Space
-
-## Install Packages
-
-Make sure to have all of this installed. Some might be installed by default.
-
-Dependencies:
-
-- git
-- curl
-- make
-
-Common tools:
-
-- tmux
-- emacs (emacs-nox on linux)
-- gpg
-- ssh
-- python / pip
-  - powerline-status
-  - awscli
-- most
-- zsh (on OSX, install it from brew to have newer version)
-- remake
-- ntpdate
-
-## Usage
-
-## Update Go
-
-```sh
-# Go itself.
-(cd ~/.dotfiles && echo "1.13.1" > versions/go && make)
-go version
-
-# Go tools (golint, govet, guru, etc).
-go get golang.org/x/tools/cmd/...
-
-# Linter
-(cd ~/.dotfiles && echo "1.19.1" > versions/golangci-lint && make)
-golangci-lint --version
-```
+Thanks to [@creack](https://github.com/creack) for the original repo structure.

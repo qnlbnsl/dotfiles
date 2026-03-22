@@ -17,8 +17,8 @@ create_new_user() {
     exit 1
   fi
 
-  # Create the new user and their home directory(-m), set their shell to bash(-s), and set their password
-  sudo useradd -m -s /bin/bash "$new_username"
+  # Create the new user and their home directory(-m), set their shell to zsh(-s), and set their password
+  sudo useradd -m -s /usr/bin/zsh "$new_username"
   echo "$new_username:$new_password" | sudo chpasswd
   sudo usermod -aG sudo "$new_username"
   echo "$new_username ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-$new_username-root"
@@ -38,7 +38,7 @@ create_new_user() {
   git clone git@github.com:qnlbnsl/dotfiles.git "/home/$new_username/.dotfiles"
   sudo chown -R "$new_username:$new_username" "/home/$new_username/.dotfiles"
   echo "dotfiles cloned." 
-  echo "run: chmod +x /home/$new_username/.dotfiles/installer/linux/base.sh"
-  echo "run: /home/$new_username/.dotfiles/installer/linux/base.sh to setup the new user."
+  echo "run: chmod +x /home/$new_username/.dotfiles/installers/linux/base.sh"
+  echo "run: /home/$new_username/.dotfiles/installers/linux/base.sh to setup the new user."
   return 0
 }

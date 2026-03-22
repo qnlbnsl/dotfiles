@@ -1,4 +1,3 @@
-
 # `sheldon` configuration file
 # ----------------------------
 #
@@ -15,26 +14,20 @@ shell = "zsh"
 
 [plugins]
 
-[plugins.ohmyzsh]
-github = 'ohmyzsh/ohmyzsh'
-dir = 'plugins'
-use = ['{yarn,git,vscode,golang,aws,terraform,tmux,docker,docker-compose,zsh-autosuggestions,gcloud,nvm,ssh-agent}/*.plugin.zsh']
+# NOTE: oh-my-zsh plugins are loaded via oh-my-zsh.sh in .zshrc, NOT here
+# This avoids double-loading which causes major slowdown
 
-
-# [plugins.zsh-nvm]
-# github = 'lukechilds/zsh-nvm'
+[plugins.zsh-autosuggestions]
+github = 'zsh-users/zsh-autosuggestions'
 
 [plugins.zsh-completions]
 github = 'zsh-users/zsh-completions'
 
-
 [plugins.zsh-history-substring-search]
 github = 'zsh-users/zsh-history-substring-search'
 
-
 [plugins.zsh-syntax-highlighting]
 github = 'zsh-users/zsh-syntax-highlighting'
-
 
 [plugins.alias-tips]
 github = 'djui/alias-tips'
