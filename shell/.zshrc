@@ -95,6 +95,10 @@ alias aws='_load_aws'
 export GPG_TTY=$(tty)
 
 _load_gcloud() {
+  # First word is the real binary name (injected by the alias); rest are CLI args.
+  local cmd="${1:?}"
+  shift
+
   # Unalias the command to avoid recursive calls
   unalias gcloud >/dev/null 2>&1
   unalias gsutil >/dev/null 2>&1
@@ -108,8 +112,7 @@ _load_gcloud() {
   # The next line enables shell command completion for gcloud.
   if [ -f "$HOME/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/google-cloud-sdk/completion.zsh.inc"; fi
 
-  # Execute the actual command
-  "$@"
+  "$cmd" "$@"
 }
 
 # Alias gcloud and related commands to the loader function
