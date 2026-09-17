@@ -3,7 +3,7 @@
 
 # ── Symlinks ─────────────────────────────────────────────────────────
 # Files in shell/ that get symlinked to ~/
-# NOTE: .zshenv is handled separately per-platform (see ZSHENV_SRC).
+# NOTE: .zshenv is OS-specific (ZSHENV_SRC) and is not in shell/.
 LINKS_SRCS = .aliases \
              .android \
              .autoload \
@@ -14,7 +14,6 @@ LINKS_SRCS = .aliases \
              .profile \
              .tmux.conf \
              .zprofile \
-             .zshenv \
              .zshrc \
              .zsh_functions \
              .config/sheldon/plugins.toml
@@ -31,17 +30,18 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 
 # ── Default install (platforms extend this via additional install: lines)
 # .ssh/config lives at repo .ssh/config (not shell/.ssh); see $(HOME)/.ssh/config rule below.
-install: $(LINKS_TARGETS) $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local
+install: shell $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local
 
 # ── Clean / Purge ────────────────────────────────────────────────────
-clean: $(LINKS_CLEAN) clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot \
+clean: $(LINKS_CLEAN) clean_link_.zshenv clean_link_.ssh/config \
+       clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot \
        clean_golangci-lint clean_terraform clean_.sheldon
 
 purge: clean
 	cd $(HOME); $(RM) -r $(PURGE_LIST)
 
 # ── Phony targets ────────────────────────────────────────────────────
-.PHONY: all install clean purge debug git-hide-local \
+.PHONY: all install shell clean purge debug git-hide-local \
         omz clean_.oh-my-zsh sheldon clean_.sheldon \
         tpm clean_.tpm nvm clean_.nvm \
         go clean_.goroot golangci-lint clean_golangci-lint \
@@ -167,19 +167,36 @@ clean_.cargo:
 #  Symlinks
 # ══════════════════════════════════════════════════════════════════════
 
-# Generic rule: link shell dotfiles to ~/
+# Phony so this does not collide with the repo's shell/ directory.
+# Always relink: make timestamps cannot tell "regular file" from "correct symlink",
+# and a stock ~/.profile would otherwise block the link.
+shell:
+	@for f in $(LINKS_SRCS); do \
+		mkdir -p "$(HOME)/$$(dirname "$$f")"; \
+		$(RM) -r "$(HOME)/$$f"; \
+		ln -s "$(SHELL_DIR)/$$f" "$(HOME)/$$f"; \
+		echo "linked ~/$$f"; \
+	done
+	@$(RM) -r "$(HOME)/.zshenv"
+	@ln -s "$(ZSHENV_SRC)" "$(HOME)/.zshenv"
+	@echo "linked ~/.zshenv"
+
+# Generic rule: link a single shell dotfile to ~/ (e.g. make ~/.zshrc)
 $(HOME)/%: $(SHELL_DIR)/%
 	@mkdir -p $(dir $@)
-	ln -f -s $< $@
+	@$(RM) -r $@
+	ln -s $< $@
 
 # SSH config is tracked at $(BASE_DIR)/.ssh/config, not under shell/
 $(HOME)/.ssh/config: $(SSH_DIR)/config
 	@mkdir -p $(dir $@)
-	ln -f -s $< $@
+	@$(RM) -r $@
+	ln -s $< $@
 
 # OS-specific .zshenv (ZSHENV_SRC is set by platform .mk)
 $(HOME)/.zshenv: $(ZSHENV_SRC)
-	ln -f -s $< $@
+	@$(RM) -r $@
+	ln -s $< $@
 
 # Remove symlinks only if they are still symlinks.
 clean_link_%:

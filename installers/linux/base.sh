@@ -49,6 +49,7 @@ mkdir -p "$HOME/.local/bin"
 # TUI for selecting make targets
 declare -A descriptions=(
   ["install"]="Shell + packages (default)"
+  ["shell"]="Symlink shell dotfiles to ~/"
   ["go"]="Go language"
   ["golangci-lint"]="Go linter"
   ["docker"]="Docker"

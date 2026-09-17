@@ -2,6 +2,7 @@
 #
 # Targets:
 #   make                Shell env + OS packages (default)
+#   make shell          Symlink shell/ dotfiles + .zshenv into ~/
 #   make go             Install Go
 #   make terraform      Install Terraform
 #   make golangci-lint  Install golangci-lint

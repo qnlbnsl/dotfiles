@@ -34,6 +34,7 @@ The default `install` target sets up:
 
 | Target | Description |
 |--------|-------------|
+| `make shell` | Symlink `shell/` dotfiles and OS-specific `.zshenv` into `~/` |
 | `make go` | Install Go (version from `versions/go`) |
 | `make go-tools` | Install ccat + assumerole via `go install` |
 | `make terraform` | Install Terraform (version from `versions/terraform`) |
