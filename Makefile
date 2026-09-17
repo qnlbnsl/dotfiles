@@ -10,7 +10,7 @@
 #   make docker         Install Docker (Linux only)
 #   make github         Install GitHub CLI
 #   make gpg_setup      Generate GPG keys
-#   make gitsetup       Link gitconfig.local
+#   make gitsetup       Render git profiles from templates + link ~/.gitconfig.local
 #   make git-hide-local skip-worktree on .ssh/config (local edits stay private)
 #   make clean          Remove installed components
 #   make purge          Remove + nuke caches

@@ -47,9 +47,9 @@ purge: clean
         go clean_.goroot golangci-lint clean_golangci-lint \
         terraform clean_terraform cargo clean_.cargo \
         import_ssh_keys import_ssh_keys_service \
-        gitsetup clean_link_.gitconfig.local \
+        gitsetup git_gpg_update clean_link_.gitconfig.local \
         github-login github-login-gpg \
-        gpg_setup gpg_setup_export upload_gpg_keys git_gpg_update \
+        gpg_setup gpg_setup_export upload_gpg_keys \
         clean_file_% clean_link_%
 
 # ── Debug ────────────────────────────────────────────────────────────
@@ -180,6 +180,7 @@ shell:
 	@$(RM) -r "$(HOME)/.zshenv"
 	@ln -s "$(ZSHENV_SRC)" "$(HOME)/.zshenv"
 	@echo "linked ~/.zshenv"
+	@$(MAKE) gitsetup
 
 # Generic rule: link a single shell dotfile to ~/ (e.g. make ~/.zshrc)
 $(HOME)/%: $(SHELL_DIR)/%
@@ -259,16 +260,37 @@ github-login: github
 github-login-gpg: github
 	@gh auth login -s write:gpg_key
 
-# Git profile setup
-gitsetup: $(HOME)/.gitconfig.local
-$(HOME)/.gitconfig.local: $(SHELL_DIR)/.gitconfig.qnlbnsl
-	ln -f -s $< $@
-$(SHELL_DIR)/.gitconfig.qnlbnsl: git_gpg_update
+# Git profiles from templates. GPG is optional:
+#   keys present  -> gpgsign on + signingKey
+#   keys missing  -> gpgsign off, still link identity
+#   ~/.gitconfig.qnlbnsl   -> shell/.gitconfig.qnlbnsl
+#   ~/.gitconfig.immertec  -> shell/.gitconfig.immertec
+#   ~/.gitconfig.local     -> ~/.gitconfig.qnlbnsl   (setgit qnlbnsl|immertec)
+RENDER_GITCONFIG := $(GPG_TEMPLATES_DIR)/render-gitconfig.sh
 
-clean: clean_link_.gitconfig.local
+git_gpg_update:
+	@bash $(RENDER_GITCONFIG) \
+		$(GPG_TEMPLATES_DIR)/.gitconfig.qnlbnsl.template \
+		qnlbnsl@gmail.com \
+		$(SHELL_DIR)/.gitconfig.qnlbnsl
+	@bash $(RENDER_GITCONFIG) \
+		$(GPG_TEMPLATES_DIR)/.gitconfig.immertec.template \
+		kunal@immertec.com \
+		$(SHELL_DIR)/.gitconfig.immertec
 
-# GPG key generation
+gitsetup: git_gpg_update
+	@$(RM) -r $(HOME)/.gitconfig.qnlbnsl $(HOME)/.gitconfig.immertec $(HOME)/.gitconfig.local
+	ln -s $(SHELL_DIR)/.gitconfig.qnlbnsl $(HOME)/.gitconfig.qnlbnsl
+	ln -s $(SHELL_DIR)/.gitconfig.immertec $(HOME)/.gitconfig.immertec
+	ln -s $(HOME)/.gitconfig.qnlbnsl $(HOME)/.gitconfig.local
+	@echo "linked ~/.gitconfig.local -> ~/.gitconfig.qnlbnsl"
+	@echo "switch with: setgit qnlbnsl | setgit immertec"
+
+clean: clean_link_.gitconfig.local clean_link_.gitconfig.qnlbnsl clean_link_.gitconfig.immertec
+
+# GPG key generation, then re-render git profiles so signing keys are picked up.
 gpg_setup: $(GPG_QNLBNSL_KEY) $(GPG_IMMERTEC_KEY)
+	@$(MAKE) gitsetup
 
 $(GPG_QNLBNSL_KEY):
 	gpg --list-keys 'qnlbnsl@gmail.com' || gpg --generate-key --passphrase "" --batch $(GPG_TEMPLATES_DIR)/qnlbnsl
@@ -287,20 +309,10 @@ $(EXPORT_QNLBNSL): $(GPG_QNLBNSL_KEY)
 $(EXPORT_IMMERTEC): $(GPG_IMMERTEC_KEY)
 	@gpg --output $@ --armor --export 'kunal@immertec.com'
 
-# Upload GPG keys to GitHub
+# Upload GPG keys to GitHub, then fill+link git profiles (old git.sh did this).
 upload_gpg_keys: $(EXPORT_QNLBNSL) $(EXPORT_IMMERTEC)
 	gh gpg-key add $(EXPORT_QNLBNSL)
 	gh gpg-key add $(EXPORT_IMMERTEC)
 	rm -f $(EXPORT_QNLBNSL) $(EXPORT_IMMERTEC)
-
-# Extract GPG key IDs and update gitconfig signing key
-git_gpg_update: $(BASE_DIR)/.git_gpg_update
-$(BASE_DIR)/.git_gpg_update:
-	@key1=$$(gpg --list-secret-keys --keyid-format=long qnlbnsl@gmail.com | $(GREP_P) 'sec' | $(GREP_P) -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp $(GPG_TEMPLATES_DIR)/.gitconfig.qnlbnsl.template $(SHELL_DIR)/.gitconfig.qnlbnsl; \
-	echo "  signingKey = $$key1" | tee -a $(SHELL_DIR)/.gitconfig.qnlbnsl; \
-	key2=$$(gpg --list-secret-keys --keyid-format=long kunal@immertec.com | $(GREP_P) 'sec' | $(GREP_P) -o -P 'rsa4096.{0,17}' | cut -d/ -f2); \
-	cp $(GPG_TEMPLATES_DIR)/.gitconfig.immertec.template $(SHELL_DIR)/.gitconfig.immertec; \
-	echo "  signingKey = $$key2" | tee -a $(SHELL_DIR)/.gitconfig.immertec; \
-	touch $@; \
 	$(MAKE) gitsetup
+

@@ -46,7 +46,7 @@ The default `install` target sets up:
 | `make github-login` | Authenticate with GitHub |
 | `make gpg_setup` | Generate GPG keys |
 | `make upload_gpg_keys` | Upload GPG keys to GitHub |
-| `make gitsetup` | Link gitconfig.local profile |
+| `make gitsetup` | Render git profiles from templates and link `~/.gitconfig.local` (GPG signing if keys exist) |
 | `make debug` | Print detected OS, arch, and paths |
 | `make clean` | Remove installed components |
 | `make purge` | Clean + nuke caches |

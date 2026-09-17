@@ -117,6 +117,7 @@ for choice in $user_choices; do
   make -C "$repo_root" "$choice"
 done
 
-# Always set zsh as default shell
+# Always render+link git profiles (GPG signing is optional), then set zsh.
+make -C "$repo_root" gitsetup
 make -C "$repo_root" set-shell
 echo "Done! Log out and back in (or reboot) to apply changes."
