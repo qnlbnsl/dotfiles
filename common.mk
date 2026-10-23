@@ -30,10 +30,10 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 
 # ── Default install (platforms extend this via additional install: lines)
 # .ssh/config lives at repo .ssh/config (not shell/.ssh); see $(HOME)/.ssh/config rule below.
-install: shell $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local
+install: shell $(HOME)/.ssh/config $(HOME)/.ssh/rc omz sheldon tpm nvm import_ssh_keys git-hide-local
 
 # ── Clean / Purge ────────────────────────────────────────────────────
-clean: $(LINKS_CLEAN) clean_link_.zshenv clean_link_.ssh/config \
+clean: $(LINKS_CLEAN) clean_link_.zshenv clean_link_.ssh/config clean_link_.ssh/rc \
        clean_.oh-my-zsh clean_.tpm clean_.nvm clean_.goroot \
        clean_golangci-lint clean_terraform clean_.sheldon
 
@@ -194,6 +194,12 @@ $(HOME)/.ssh/config: $(SSH_DIR)/config
 	@$(RM) -r $@
 	ln -s $< $@
 
+# sshd runs ~/.ssh/rc on every login; it keeps ~/.ssh/agent.sock current.
+$(HOME)/.ssh/rc: $(SSH_DIR)/rc
+	@mkdir -p $(dir $@)
+	@$(RM) -r $@
+	ln -s $< $@
+
 # OS-specific .zshenv (ZSHENV_SRC is set by platform .mk)
 $(HOME)/.zshenv: $(ZSHENV_SRC)
 	@$(RM) -r $@
@@ -205,6 +211,8 @@ clean_link_%:
 
 clean_link_.ssh/config:
 	@[ -L $(HOME)/.ssh/config ] && $(RM) $(HOME)/.ssh/config || true
+clean_link_.ssh/rc:
+	@[ -L $(HOME)/.ssh/rc ] && $(RM) $(HOME)/.ssh/rc || true
 clean_link_.config/sheldon/plugins.toml:
 	@[ -L $(HOME)/.config/sheldon/plugins.toml ] && $(RM) $(HOME)/.config/sheldon/plugins.toml || true
 clean_link_.zshenv:

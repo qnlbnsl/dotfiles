@@ -28,6 +28,7 @@ The default `install` target sets up:
 - **nvm** (Node version manager, lazy-loaded)
 - **Symlinks** from `shell/` to `~/` (.zshrc, .gitconfig, .tmux.conf, etc.)
 - **SSH keys** imported from GitHub
+- **SSH agent link**: `~/.ssh/rc` points `~/.ssh/agent.sock` at the newest forwarded agent on every login, and `.ssh/config` uses it while it is live, so long-running processes (Claude sessions, tmux) survive a Cursor/VS Code reconnect
 - **OS packages** via Homebrew (macOS), apt (Debian), or pacman (Arch)
 
 ## Additional targets
