@@ -1,0 +1,37 @@
+# macOS dark, Graphite accent. Neutral (R=G=B) AppKit grays, Apple system colors for the
+# terminal palette, and a hairline window border instead of a colored one.
+mode = "dark"
+
+accent = "#8c8c8c"
+selection = "#464646"
+muted = "#7a7a7a"
+
+background = "#1e1e1e"
+dark_background = "#181818"
+darker_background = "#121212"
+lighter_background = "#323232"
+
+foreground = "#dddddd"
+dark_foreground = "#8c8c8c"
+light_foreground = "#e8e8e8"
+bright_foreground = "#ffffff"
+
+red = "#ff453a"
+yellow = "#ffd60a"
+orange = "#ff9f0a"
+green = "#32d74b"
+cyan = "#64d2ff"
+blue = "#0a84ff"
+magenta = "#bf5af2"
+brown = "#ac8e68"
+
+bright_red = "#ff6961"
+bright_yellow = "#ffe066"
+bright_green = "#5de377"
+bright_cyan = "#8ae0ff"
+bright_blue = "#409cff"
+bright_magenta = "#da8fff"
+
+# macOS windows have no colored border: a faint light hairline on the active one.
+hyprland_active_border = "rgba(ffffff2e)"
+hyprland_inactive_border = "rgba(ffffff12)"

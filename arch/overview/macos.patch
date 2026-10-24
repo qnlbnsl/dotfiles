@@ -1,0 +1,798 @@
+diff --git c/common/Config.qml i/common/Config.qml
+index 621b39d..6293284 100644
+--- c/common/Config.qml
++++ i/common/Config.qml
+@@ -123,6 +123,20 @@ Singleton {
+             property int specialWorkspaceColumns: root.readInt("overview.specialWorkspaceColumns", columns)
+             property string emptyWorkspaceWallpaper: root.readString("overview.emptyWorkspaceWallpaper", "")
+             property string specialEmptyWorkspaceWallpaper: root.readString("overview.specialEmptyWorkspaceWallpaper", "")
++            // macOS: the band behind the desktop thumbnails ("workspace background") and the
++            // area below it where the windows are spread out ("desktop background").
++            // Colours are any QML colour (#AARRGGBB); set gradientTo for a top-to-bottom gradient.
++            property QtObject workspaceBackground: QtObject {
++                property string color: root.readString("overview.workspaceBackground.color", "#59000000")
++                property string gradientTo: root.readString("overview.workspaceBackground.gradientTo", "")
++                property string borderColor: root.readString("overview.workspaceBackground.borderColor", "#40FFFFFF")
++                property int borderWidth: root.readInt("overview.workspaceBackground.borderWidth", 1)
++                property int bottomPadding: root.readInt("overview.workspaceBackground.bottomPadding", 20)
++            }
++            property QtObject desktopBackground: QtObject {
++                property string color: root.readString("overview.desktopBackground.color", "#00000000")
++                property string gradientTo: root.readString("overview.desktopBackground.gradientTo", "")
++            }
+             property real workspaceSpacing: root.readReal("overview.workspaceSpacing", 5)
+             property real backgroundPadding: root.readReal("overview.backgroundPadding", 10)
+             property real workspaceNumberBaseSize: root.readReal("overview.workspaceNumberBaseSize", 250)
+diff --git c/modules/overview/GlassSlot.qml i/modules/overview/GlassSlot.qml
+new file mode 100644
+index 0000000..aa1b6b8
+--- /dev/null
++++ i/modules/overview/GlassSlot.qml
+@@ -0,0 +1,38 @@
++import QtQuick
++import "../../common"
++
++// macOS "liquid glass": a frosted, neutral pane (Liquid Glass has no color of its own) with a soft
++// top highlight and a hairline edge. Marks where a dragged window will land.
++Rectangle {
++    id: root
++    radius: 6
++    color: "transparent"
++    border.width: 1
++    border.color: "#8CFFFFFF"
++    gradient: Gradient {
++        GradientStop { position: 0.0; color: "#5CFFFFFF" }
++        GradientStop { position: 0.45; color: "#29FFFFFF" }
++        GradientStop { position: 1.0; color: "#14FFFFFF" }
++    }
++
++    // Inner hairline: the second edge that gives glass its depth.
++    Rectangle {
++        anchors.fill: parent
++        anchors.margins: 1
++        radius: Math.max(0, root.radius - 1)
++        color: "transparent"
++        border.width: 1
++        border.color: "#1FFFFFFF"
++    }
++
++    Text {
++        anchors.centerIn: parent
++        text: "+"
++        color: "#EBFFFFFF"
++        style: Text.Raised
++        styleColor: "#33000000"
++        font.pixelSize: Math.max(8, Math.round(Math.min(root.width, root.height) * 0.45))
++        font.weight: Font.Light
++        font.family: Appearance.font.family.main
++    }
++}
+diff --git c/modules/overview/MissionControlWindows.qml i/modules/overview/MissionControlWindows.qml
+new file mode 100644
+index 0000000..4735ea9
+--- /dev/null
++++ i/modules/overview/MissionControlWindows.qml
+@@ -0,0 +1,233 @@
++import QtQuick
++import QtQuick.Effects
++import Quickshell
++import Quickshell.Wayland
++import Quickshell.Widgets
++import Quickshell.Hyprland
++import "../../common"
++import "../../services"
++
++// macOS Mission Control: the active desktop's windows spread out below the desktop strip.
++// Drag a window onto a desktop thumbnail to move it there; click to focus, middle-click to close.
++Item {
++    id: root
++    required property var panelWindow
++    property var widget: null // OverviewWidget, owns the desktop thumbnails' drop targets
++
++    readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
++    readonly property int workspaceId: monitor?.activeWorkspace?.id ?? -1
++    readonly property real gap: 36
++    readonly property real labelHeight: 30
++    readonly property real maxScale: 0.8
++
++    readonly property var entries: {
++        const byAddress = HyprlandData.windowByAddress;
++        const out = [];
++        for (const toplevel of ToplevelManager.toplevels.values) {
++            const data = byAddress[`0x${toplevel.HyprlandToplevel.address}`];
++            // Pinned windows (e.g. the Wispr Flow pill) float over every desktop; Mission Control skips them.
++            if (!data || data.pinned || data.workspace?.id !== root.workspaceId || data.monitor !== root.monitor?.id)
++                continue;
++            out.push({ toplevel: toplevel, data: data });
++        }
++        // Keep a stable reading order: top-to-bottom, left-to-right as they sit on screen.
++        out.sort((a, b) => (a.data.at[1] - b.data.at[1]) || (a.data.at[0] - b.data.at[0]));
++        return out;
++    }
++
++    // Grid layout: try every column count and keep the one that lets windows be largest.
++    readonly property var layout: {
++        const n = entries.length;
++        if (n === 0 || width <= 0 || height <= 0)
++            return [];
++
++        let best = null;
++        for (let cols = 1; cols <= n; cols++) {
++            const rows = Math.ceil(n / cols);
++            const cellW = (width - (cols - 1) * gap) / cols;
++            const cellH = (height - (rows - 1) * gap - rows * labelHeight) / rows;
++            if (cellW <= 0 || cellH <= 0)
++                continue;
++            let scale = maxScale;
++            for (const e of entries)
++                scale = Math.min(scale, cellW / Math.max(1, e.data.size[0]), cellH / Math.max(1, e.data.size[1]));
++            if (!best || scale > best.scale)
++                best = { cols: cols, rows: rows, cellW: cellW, cellH: cellH, scale: scale };
++        }
++        if (!best)
++            return [];
++
++        const result = [];
++        const totalH = best.rows * (best.cellH + labelHeight) + (best.rows - 1) * gap;
++        const top = (height - totalH) / 2;
++        for (let i = 0; i < n; i++) {
++            const row = Math.floor(i / best.cols);
++            const inRow = Math.min(best.cols, n - row * best.cols);
++            const rowW = inRow * best.cellW + (inRow - 1) * gap;
++            const col = i % best.cols;
++            const w = entries[i].data.size[0] * best.scale;
++            const h = entries[i].data.size[1] * best.scale;
++            const cellX = (width - rowW) / 2 + col * (best.cellW + gap);
++            const cellY = top + row * (best.cellH + labelHeight + gap);
++            result.push({
++                x: Math.round(cellX + (best.cellW - w) / 2),
++                y: Math.round(cellY + (best.cellH - h) / 2),
++                w: Math.round(w),
++                h: Math.round(h)
++            });
++        }
++        return result;
++    }
++
++    Repeater {
++        model: root.entries.length
++
++        Item {
++            id: tile
++            required property int index
++            readonly property var entry: root.entries[index]
++            readonly property var geo: root.layout[index] ?? { x: 0, y: 0, w: 0, h: 0 }
++            readonly property string address: entry?.data?.address ?? ""
++            readonly property var desktopEntry: {
++                DesktopEntries.applications.values; // re-run when the entry index updates
++                return DesktopEntries.heuristicLookup(entry?.data?.class);
++            }
++            property bool dragging: false
++            // Where the window was grabbed, in tile coordinates. The window shrinks around this
++            // point so it stays under the cursor, and the drop target is picked from it too.
++            property real grabX: width / 2
++            property real grabY: height / 2
++            property real dragScale: dragging ? Math.min(1, 220 / Math.max(1, geo.w)) : 1
++
++            x: geo.x
++            y: geo.y
++            width: geo.w
++            height: geo.h
++            z: dragging ? 1000 : 0
++            // Shrink while dragging so the window fits onto a desktop thumbnail, like macOS.
++            transform: Scale {
++                origin.x: tile.grabX
++                origin.y: tile.grabY
++                xScale: tile.dragScale
++                yScale: tile.dragScale
++            }
++
++            Behavior on x { enabled: !tile.dragging; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            Behavior on y { enabled: !tile.dragging; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            Behavior on dragScale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
++
++            Drag.active: dragging
++            Drag.source: tile
++            Drag.hotSpot.x: grabX
++            Drag.hotSpot.y: grabY
++
++            RectangularShadow {
++                anchors.fill: preview
++                radius: preview.radius
++                blur: 30
++                offset: Qt.vector2d(0, 8)
++                color: "#80000000"
++            }
++
++            ClippingRectangle {
++                id: preview
++                anchors.fill: parent
++                radius: 10
++                color: Appearance.colors.colLayer2
++                border.width: dragArea.containsMouse || tile.dragging ? 3 : 0
++                border.color: "#FFFFFF"
++
++                ScreencopyView {
++                    anchors.fill: parent
++                    captureSource: GlobalStates.overviewOpen ? tile.entry?.toplevel : null
++                    live: true
++                }
++            }
++
++            // App name pill, shown on hover like Mission Control.
++            Rectangle {
++                visible: dragArea.containsMouse && !tile.dragging
++                anchors.top: parent.bottom
++                anchors.topMargin: 8
++                anchors.horizontalCenter: parent.horizontalCenter
++                width: Math.min(label.implicitWidth + 24, Math.max(parent.width, 160))
++                height: label.implicitHeight + 10
++                radius: height / 2
++                color: "#CC1E1E1E"
++
++                Text {
++                    id: label
++                    anchors.centerIn: parent
++                    width: Math.min(implicitWidth, parent.width - 24)
++                    elide: Text.ElideRight
++                    text: tile.desktopEntry?.name || tile.entry?.data?.class || tile.entry?.data?.title || ""
++                    color: "#FFFFFF"
++                    font.pixelSize: Appearance.font.pixelSize.smaller
++                    font.family: Appearance.font.family.main
++                }
++            }
++
++            MouseArea {
++                id: dragArea
++                anchors.fill: parent
++                hoverEnabled: true
++                acceptedButtons: Qt.LeftButton | Qt.MiddleButton
++                drag.target: tile
++                drag.threshold: 8
++                cursorShape: tile.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
++
++                onPressed: mouse => {
++                    tile.grabX = mouse.x;
++                    tile.grabY = mouse.y;
++                }
++
++                drag.onActiveChanged: {
++                    if (drag.active) {
++                        if (root.widget) {
++                            root.widget.draggingFromWorkspace = root.workspaceId;
++                            root.widget.draggingTargetSpecialWorkspace = "";
++                        }
++                        tile.dragging = true;
++                    }
++                }
++
++                onReleased: {
++                    if (!tile.dragging)
++                        return;
++                    const target = root.widget?.draggingTargetWorkspace ?? -1;
++                    const plan = root.widget?.dropPlan(target);
++                    tile.dragging = false;
++                    if (root.widget) {
++                        root.widget.draggingFromWorkspace = -1;
++                        root.widget.draggingTargetWorkspace = -1;
++                        root.widget.dropPoint = null;
++                    }
++                    if (target !== -1 && target !== root.workspaceId && plan)
++                        root.widget.dropWindow(tile.address, plan);
++                    // Snap back into the grid (or out of the way once the window has moved).
++                    tile.x = Qt.binding(() => tile.geo.x);
++                    tile.y = Qt.binding(() => tile.geo.y);
++                }
++
++                onClicked: event => {
++                    if (tile.dragging || !tile.address)
++                        return;
++                    if (event.button === Qt.LeftButton) {
++                        GlobalStates.overviewOpen = false;
++                        if (Hyprland.usingLua)
++                            Hyprland.dispatch(`hl.dsp.focus({ window = 'address:${tile.address}' })`);
++                        else
++                            Hyprland.dispatch(`focuswindow address:${tile.address}`);
++                    } else if (event.button === Qt.MiddleButton) {
++                        if (Hyprland.usingLua)
++                            Hyprland.dispatch(`hl.dsp.window.close('address:${tile.address}')`);
++                        else
++                            Hyprland.dispatch(`closewindow address:${tile.address}`);
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
+index 2fb08bb..fe1adf4 100644
+--- c/modules/overview/Overview.qml
++++ i/modules/overview/Overview.qml
+@@ -96,6 +96,21 @@ Scope {
+                 focus: GlobalStates.overviewOpen
+                 z: 0
+ 
++                // macOS: the desktop wallpaper sits behind Mission Control, hiding the real windows.
++                Image {
++                    id: wallpaperLayer
++                    readonly property string path: Config.options.overview.emptyWorkspaceWallpaper
++                    anchors.fill: parent
++                    visible: path.length > 0
++                    source: path.startsWith("~/") ? `file://${Quickshell.env("HOME")}${path.slice(1)}`
++                        : path.startsWith("/") ? `file://${path}` : path
++                    fillMode: Image.PreserveAspectCrop
++                    asynchronous: true
++                    cache: true
++                    sourceSize.width: root.screen.width
++                    z: 0
++                }
++
+                 Rectangle {
+                     id: backdropLayer
+                     anchors.fill: parent
+@@ -118,6 +133,14 @@ Scope {
+                 }
+ 
+                 Keys.onPressed: event => {
++                    // close on F19: that's Wispr Flow's dictation key (Caps Lock via keyd). The
++                    // overview holds keyboard focus, so dictated text would otherwise land here.
++                    if (event.key === Qt.Key_F19) {
++                        GlobalStates.overviewOpen = false;
++                        event.accepted = true;
++                        return;
++                    }
++
+                     // close: Escape or Enter
+                     if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return) {
+                         GlobalStates.overviewOpen = false;
+@@ -214,6 +237,45 @@ Scope {
+                 }
+             }
+ 
++            // macOS: "workspace background", the band holding the desktop thumbnails. The desktop
++            // labels sit in the gap above the thumbnails, so the gap below is set on its own.
++            Rectangle {
++                id: workspaceBackground
++                readonly property var cfg: Config.options.overview.workspaceBackground
++                visible: GlobalStates.overviewOpen
++                z: 0.5
++                anchors { top: parent.top; left: parent.left; right: parent.right }
++                height: columnLayout.y + columnLayout.height + cfg.bottomPadding
++                color: cfg.color
++                gradient: cfg.gradientTo.length > 0 ? workspaceGradient : null
++                Gradient {
++                    id: workspaceGradient
++                    GradientStop { position: 0; color: workspaceBackground.cfg.color }
++                    GradientStop { position: 1; color: workspaceBackground.cfg.gradientTo }
++                }
++                Rectangle {
++                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
++                    height: workspaceBackground.cfg.borderWidth
++                    color: workspaceBackground.cfg.borderColor
++                }
++            }
++
++            // macOS: "desktop background", the area below the band where the windows are spread out.
++            Rectangle {
++                id: desktopBackground
++                readonly property var cfg: Config.options.overview.desktopBackground
++                visible: GlobalStates.overviewOpen
++                z: 0.5
++                anchors { top: workspaceBackground.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
++                color: cfg.color
++                gradient: cfg.gradientTo.length > 0 ? desktopGradient : null
++                Gradient {
++                    id: desktopGradient
++                    GradientStop { position: 0; color: desktopBackground.cfg.color }
++                    GradientStop { position: 1; color: desktopBackground.cfg.gradientTo }
++                }
++            }
++
+             ColumnLayout {
+                 id: columnLayout
+                 visible: GlobalStates.overviewOpen
+@@ -233,6 +295,23 @@ Scope {
+                     }
+                 }
+             }
++
++            MissionControlWindows {
++                visible: GlobalStates.overviewOpen
++                z: 2
++                panelWindow: root
++                widget: overviewLoader.item
++                anchors {
++                    top: workspaceBackground.bottom
++                    bottom: parent.bottom
++                    left: parent.left
++                    right: parent.right
++                    topMargin: 36
++                    bottomMargin: 56
++                    leftMargin: 64
++                    rightMargin: 64
++                }
++            }
+         }
+     }
+ 
+diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
+index ca82adb..04e408d 100644
+--- c/modules/overview/OverviewWidget.qml
++++ i/modules/overview/OverviewWidget.qml
+@@ -2,6 +2,7 @@ import QtQuick
+ import QtQuick.Effects
+ import QtQuick.Layouts
+ import Quickshell
++import Quickshell.Io
+ import Quickshell.Wayland
+ import Quickshell.Hyprland
+ import "../../common"
+@@ -27,8 +28,25 @@ Item {
+     property var windowAddresses: HyprlandData.addresses
+     property var workspaceIds: HyprlandData.workspaceIds
+     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
+-    property real scale: Config.options.overview.scale
+-    property color activeBorderColor: Appearance.colors.colSecondary
++    // macOS: shrink the desktop thumbnails when there are too many to fit on one row.
++    readonly property real monitorLogicalWidth: Math.max(1, ((monitorData?.transform % 2 === 1) ? monitor.height : monitor.width) / monitor.scale)
++    readonly property real fitScale: (monitorLogicalWidth * 0.92 - Math.max(0, visibleWorkspaceCount - 1) * workspaceSpacing) / (Math.max(1, visibleWorkspaceCount) * monitorLogicalWidth)
++    property real scale: Math.min(Config.options.overview.scale, fitScale)
++    property color activeBorderColor: "#FFFFFF"
++
++    // macOS: show desktops up to the last one in use, plus one empty "+" desktop to switch or drag to.
++    readonly property int firstWorkspaceInGroup: workspaceGroup * workspacesShown + 1 + workspaceOffset
++    readonly property int lastUsedWorkspace: {
++        const last = firstWorkspaceInGroup + workspacesShown - 1;
++        let maxId = effectiveActiveWorkspaceId;
++        for (const addr in windowByAddress) {
++            const id = windowByAddress[addr]?.workspace?.id ?? -1;
++            if (id >= firstWorkspaceInGroup && id <= last)
++                maxId = Math.max(maxId, id);
++        }
++        return maxId;
++    }
++    readonly property int visibleWorkspaceCount: Math.max(1, Math.min(Config.options.overview.columns, lastUsedWorkspace - firstWorkspaceInGroup + 2))
+ 
+     property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
+         ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
+@@ -60,6 +78,119 @@ Item {
+ 
+     property int draggingFromWorkspace: -1
+     property int draggingTargetWorkspace: -1
++    // macOS: while a window is dragged over a desktop thumbnail, the spot under the cursor stands for
++    // the same spot on that desktop. Hyprland's dwindle layout splits the tiled window nearest the
++    // cursor (use_active_for_splits), side by side if it is wider than tall, else top/bottom; the
++    // half being hovered decides which side the new window takes. dropWindow() makes it so.
++    property var dropPoint: null   // hovered spot on the target desktop, global layout coordinates
++    property var dropCursor: null  // where the cursor really is, to put it back after the drop
++    readonly property var splitTarget: {
++        const ws = draggingTargetWorkspace;
++        if (ws === -1 || ws === draggingFromWorkspace || !dropPoint)
++            return null;
++        let best = null;
++        let bestDistance = Infinity;
++        for (const addr in windowByAddress) {
++            const w = windowByAddress[addr];
++            if (w?.workspace?.id !== ws || w.floating || w.pinned)
++                continue;
++            const dx = Math.max(w.at[0] - dropPoint.x, 0, dropPoint.x - (w.at[0] + w.size[0]));
++            const dy = Math.max(w.at[1] - dropPoint.y, 0, dropPoint.y - (w.at[1] + w.size[1]));
++            const distance = dx * dx + dy * dy;
++            if (distance < bestDistance) {
++                best = w;
++                bestDistance = distance;
++            }
++        }
++        return best;
++    }
++    readonly property bool splitSideways: splitTarget ? splitTarget.size[0] > splitTarget.size[1] : true
++    // How far across the target window the cursor is (0 = left/top edge, 1 = right/bottom edge).
++    readonly property real splitPosition: {
++        if (!splitTarget || !dropPoint)
++            return 1;
++        const t = splitSideways ? (dropPoint.x - splitTarget.at[0]) / splitTarget.size[0]
++                                : (dropPoint.y - splitTarget.at[1]) / splitTarget.size[1];
++        return Math.max(0, Math.min(1, t));
++    }
++    // Drop zones across the window: 25% | 50% | 50% | 25%. The outer quarters give the new
++    // window a quarter of the space, the inner ones half; which side follows the cursor.
++    readonly property bool splitFirst: splitPosition < 0.5
++    readonly property real splitShare: (splitPosition < 0.25 || splitPosition >= 0.75) ? 0.25 : 0.5
++    property real defaultSplitRatio: 1
++
++    function thumbnailToGlobal(px, py) {
++        return {
++            x: Math.round((monitorData?.x ?? 0) + (monitorData?.reserved?.[0] ?? 0) + px / root.scale),
++            y: Math.round((monitorData?.y ?? 0) + (monitorData?.reserved?.[1] ?? 0) + py / root.scale)
++        };
++    }
++
++    function trackDrop(item, x, y) {
++        root.dropPoint = thumbnailToGlobal(x, y);
++        const scenePoint = item.mapToItem(null, x, y);
++        root.dropCursor = {
++            x: Math.round((monitorData?.x ?? 0) + scenePoint.x),
++            y: Math.round((monitorData?.y ?? 0) + scenePoint.y)
++        };
++    }
++
++    // Snapshot of where a drop goes, taken before the drag state is cleared.
++    function dropPlan(workspace) {
++        return {
++            workspace: workspace,
++            target: splitTarget?.address ?? "",
++            first: splitFirst,
++            share: splitShare,
++            point: dropPoint,
++            cursor: dropCursor
++        };
++    }
++
++    // Runs as one ordered `hyprctl --batch`:
++    //  1. set dwindle's split ratio for the new split (the first child gets ratio/2 of the space);
++    //  2. point the cursor at the hovered spot, since Hyprland splits the window nearest the cursor;
++    //  3. move the window; force_split = 2 opens it on the right/bottom;
++    //  4. swap for a left/top drop, then restore the ratio and the cursor.
++    function dropWindow(address, plan) {
++        const move = `hl.dsp.window.move({workspace = '${plan.workspace}', follow = false, window = 'address:${address}'})`;
++        if (!Hyprland.usingLua) {
++            Hyprland.dispatch(`movetoworkspacesilent ${plan.workspace}, address:${address}`);
++            return;
++        }
++        if (!plan.target || !plan.point) {
++            Hyprland.dispatch(move);
++            return;
++        }
++        // The new window lands second; after a swap it sits in the first slot instead.
++        const ratio = plan.first ? plan.share * 2 : (1 - plan.share) * 2;
++        const cmds = [
++            `eval hl.config({ dwindle = { default_split_ratio = ${ratio} } })`,
++            `dispatch hl.dsp.cursor.move({x = ${plan.point.x}, y = ${plan.point.y}})`,
++            `dispatch ${move}`
++        ];
++        if (plan.first)
++            cmds.push(`dispatch hl.dsp.window.swap({target = 'address:${plan.target}', window = 'address:${address}'})`);
++        cmds.push(`eval hl.config({ dwindle = { default_split_ratio = ${root.defaultSplitRatio} } })`);
++        if (plan.cursor)
++            cmds.push(`dispatch hl.dsp.cursor.move({x = ${plan.cursor.x}, y = ${plan.cursor.y}})`);
++        Quickshell.execDetached(["hyprctl", "--batch", cmds.join(" ; ")]);
++    }
++
++    // Remember the configured split ratio so dropWindow() can put it back.
++    Process {
++        running: true
++        command: ["hyprctl", "getoption", "dwindle:default_split_ratio", "-j"]
++        stdout: StdioCollector {
++            onStreamFinished: {
++                try {
++                    const value = JSON.parse(text)?.float;
++                    if (Number.isFinite(value))
++                        root.defaultSplitRatio = value;
++                } catch (e) {}
++            }
++        }
++    }
+     property string draggingTargetSpecialWorkspace: ""
+     property int previewRecaptureToken: 0
+     property var allWorkspaces: HyprlandData.allWorkspaces
+@@ -266,6 +397,8 @@ Item {
+             return "";
+         if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
+             return trimmed;
++        if (trimmed.startsWith("~/"))
++            return `file://${Quickshell.env("HOME")}${trimmed.slice(1)}`;
+         if (trimmed.startsWith("/"))
+             return `file://${trimmed}`;
+         return trimmed;
+@@ -378,6 +511,7 @@ Item {
+ 
+     StyledRectangularShadow {
+         target: overviewBackground
++        visible: root.effectivePanelOpacity > 0
+     }
+     Rectangle { // Background
+         id: overviewBackground
+@@ -388,7 +522,7 @@ Item {
+         implicitWidth: contentLayout.implicitWidth + padding * 2
+         implicitHeight: contentLayout.implicitHeight + padding * 2
+         radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
+-        clip: true
++        clip: false // desktop labels hang below the thumbnails
+         color: ColorUtils.applyAlpha(
+             root.glassMode
+                 ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
+@@ -462,7 +596,11 @@ Item {
+                             property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
+                             property color hoveredBorderColor: Appearance.colors.colLayer2Hover
+                             property bool hoveredWhileDragging: false
++                            property bool isNewDesktop: colIndex === root.visibleWorkspaceCount - 1
++                                && workspaceValue !== root.effectiveActiveWorkspaceId
++                                && !root.workspaceHasWindows(workspaceValue)
+ 
++                            visible: colIndex < root.visibleWorkspaceCount
+                             implicitWidth: root.workspaceImplicitWidth
+                             implicitHeight: root.workspaceImplicitHeight
+                             color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
+@@ -472,11 +610,57 @@ Item {
+                                 root.effectiveWorkspaceOpacity
+                             )
+                             radius: Appearance.rounding.screenRounding * root.scale
+-                            border.width: 2
+-                            border.color: hoveredWhileDragging
+-                                ? ColorUtils.applyAlpha(hoveredBorderColor, root.glassMode ? root.glassBorderOpacity : 1)
++                            border.width: 3
++                            border.color: (hoveredWhileDragging || workspaceArea.containsMouse)
++                                ? ColorUtils.applyAlpha("#FFFFFF", 0.55)
+                                 : "transparent"
+ 
++                            RectangularShadow {
++                                anchors.fill: parent
++                                z: -1
++                                radius: parent.radius
++                                blur: 16
++                                offset: Qt.vector2d(0, 4)
++                                color: "#73000000"
++                            }
++
++                            Rectangle {
++                                visible: workspace.isNewDesktop
++                                anchors.fill: parent
++                                radius: parent.radius
++                                color: ColorUtils.applyAlpha("#000000", 0.45)
++
++                                Text {
++                                    anchors.centerIn: parent
++                                    text: "+"
++                                    color: "#FFFFFF"
++                                    font.pixelSize: Math.round(parent.height * 0.4)
++                                    font.weight: Font.Light
++                                    font.family: Appearance.font.family.main
++                                }
++                            }
++
++                            GlassSlot {
++                                visible: workspace.hoveredWhileDragging && !root.workspaceHasWindows(workspace.workspaceValue)
++                                anchors.fill: parent
++                                anchors.margins: 4
++                                radius: Math.max(0, parent.radius - 4)
++                            }
++
++                            Text {
++                                anchors.bottom: parent.top
++                                anchors.bottomMargin: 8
++                                anchors.horizontalCenter: parent.horizontalCenter
++                                text: workspace.isNewDesktop ? "New Desktop" : `Desktop ${workspace.workspaceValue}`
++                                color: "#FFFFFF"
++                                opacity: workspace.workspaceValue === root.effectiveActiveWorkspaceId ? 1 : 0.8
++                                font.pixelSize: Appearance.font.pixelSize.smaller
++                                font.weight: workspace.workspaceValue === root.effectiveActiveWorkspaceId ? Font.DemiBold : Font.Normal
++                                font.family: Appearance.font.family.main
++                                style: Text.Raised
++                                styleColor: "#66000000"
++                            }
++
+                             Image {
+                                 id: workspaceWallpaper
+                                 visible: workspace.showWallpaper
+@@ -562,6 +746,7 @@ Item {
+                             MouseArea {
+                                 id: workspaceArea
+                                 anchors.fill: parent
++                                hoverEnabled: true
+                                 acceptedButtons: Qt.LeftButton
+                                 onClicked: {
+                                     if (root.draggingTargetWorkspace === -1) {
+@@ -576,16 +761,22 @@ Item {
+                             }
+ 
+                             DropArea {
++                                id: workspaceDropArea
+                                 anchors.fill: parent
+-                                onEntered: {
++                                onEntered: drag => {
+                                     root.draggingTargetWorkspace = workspaceValue
+                                     root.draggingTargetSpecialWorkspace = ""
++                                    root.trackDrop(workspaceDropArea, drag.x, drag.y)
+                                     if (root.draggingFromWorkspace == root.draggingTargetWorkspace) return;
+                                     hoveredWhileDragging = true
+                                 }
++                                onPositionChanged: drag => root.trackDrop(workspaceDropArea, drag.x, drag.y)
+                                 onExited: {
+                                     hoveredWhileDragging = false
+-                                    if (root.draggingTargetWorkspace == workspaceValue) root.draggingTargetWorkspace = -1
++                                    if (root.draggingTargetWorkspace == workspaceValue) {
++                                        root.draggingTargetWorkspace = -1
++                                        root.dropPoint = null
++                                    }
+                                 }
+                             }
+ 
+@@ -1026,7 +1217,7 @@ Item {
+                         return ToplevelManager.toplevels.values.filter((toplevel) => {
+                             const address = `0x${toplevel.HyprlandToplevel.address}`
+                             var win = windowByAddress[address]
+-                            if (root.isSpecialWorkspace(win))
++                            if (root.isSpecialWorkspace(win) || win?.pinned)
+                                 return false;
+                             const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
+                             const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
+@@ -1068,6 +1259,37 @@ Item {
+                     widgetMonitorData: root.monitorData
+                     scale: root.scale
+                     availableWorkspaceWidth: root.workspaceImplicitWidth
++
++                    readonly property bool splitPreview: root.splitTarget !== null && root.splitTarget.address === windowData?.address
++                    readonly property bool splitSideways: root.splitSideways
++                    readonly property bool splitFirst: root.splitFirst
++                    readonly property real fullWidth: Math.min(targetWindowWidth, availableWorkspaceWidth)
++                    readonly property real fullHeight: Math.min(targetWindowHeight, availableWorkspaceHeight)
++                    // Size of the slot the dropped window takes (25% or 50% of this window), 0 when idle.
++                    readonly property real slotWidth: splitPreview && splitSideways ? fullWidth * root.splitShare : 0
++                    readonly property real slotHeight: splitPreview && !splitSideways ? fullHeight * root.splitShare : 0
++                    clip: !splitPreview
++                    width: fullWidth - slotWidth
++                    height: fullHeight - slotHeight
++                    // When the new window takes the left/top, this one slides over to make room.
++                    transform: Translate {
++                        x: window.splitFirst ? window.slotWidth : 0
++                        y: window.splitFirst ? window.slotHeight : 0
++                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                        Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                    }
++
++                    GlassSlot { // "+" slot where the dropped window will land
++                        opacity: window.splitPreview ? 1 : 0
++                        visible: opacity > 0
++                        x: window.splitSideways ? (window.splitFirst ? -width : parent.width) : 0
++                        y: window.splitSideways ? 0 : (window.splitFirst ? -height : parent.height)
++                        width: window.splitSideways ? Math.max(window.slotWidth, 1) : parent.width
++                        height: window.splitSideways ? parent.height : Math.max(window.slotHeight, 1)
++                        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
++                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                        Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                    }
+                     availableWorkspaceHeight: root.workspaceImplicitHeight
+                     widgetMonitorId: root.monitor.id
+                     recaptureToken: root.previewRecaptureToken
+@@ -1113,6 +1335,7 @@ Item {
+                         }
+                         onReleased: {
+                             const targetWorkspace = root.draggingTargetWorkspace
++                            const plan = root.dropPlan(targetWorkspace)
+                             const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
+                             window.pressed = false
+                             window.Drag.active = false
+@@ -1140,11 +1363,7 @@ Item {
+                             }
+                             else if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
+                                 //INFO: From normal TO normal
+-                                if (Hyprland.usingLua) {
+-                                    Hyprland.dispatch(`hl.dsp.window.move({workspace = '${targetWorkspace}', follow = false, window = 'address:${window.windowData?.address}'})`);
+-                                } else {
+-                                    Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
+-                                }
++                                root.dropWindow(window.windowData?.address, plan)
+                                 updateWindowPosition.restart()
+                             }
+                             else {
+@@ -1194,7 +1413,7 @@ Item {
+                 height: root.workspaceImplicitHeight
+                 color: "transparent"
+                 radius: Appearance.rounding.screenRounding * root.scale
+-                border.width: 2
++                border.width: 3
+                 border.color: root.activeBorderColor
+                 Behavior on x {
+                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+diff --git c/modules/overview/qmldir i/modules/overview/qmldir
+index 9b15b45..12ca08a 100644
+--- c/modules/overview/qmldir
++++ i/modules/overview/qmldir
+@@ -1,3 +1,5 @@
+ Overview 1.0 Overview.qml
+ OverviewWidget 1.0 OverviewWidget.qml
+ OverviewWindow 1.0 OverviewWindow.qml
++MissionControlWindows 1.0 MissionControlWindows.qml
++GlassSlot 1.0 GlassSlot.qml

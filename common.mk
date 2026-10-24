@@ -57,6 +57,7 @@ debug:
 	@echo "OS:            $(OS)"
 	@echo "ARCH:          $(ARCH)"
 	@echo "PLATFORM:      $(PLATFORM)"
+	@echo "OMARCHY:       $(or $(OMARCHY),no)"
 	@echo "GREP_P:        $(GREP_P)"
 	@echo "HOME:          $(HOME)"
 	@echo "BASE_DIR:      $(BASE_DIR)"
@@ -293,7 +294,7 @@ gpg_setup: $(GPG_QNLBNSL_KEY) $(GPG_IMMERTEC_KEY)
 	@$(MAKE) gitsetup
 
 $(GPG_QNLBNSL_KEY):
-	gpg --list-keys 'qnlbnsl@gmail.com' || gpg --generate-key --passphrase "" --batch $(GPG_TEMPLATES_DIR)/qnlbnsl
+	gpg --list-keys 'qnlbnsl@gmail.com' || gpg --generate-key --pinentry-mode loopback --passphrase "" --batch $(GPG_TEMPLATES_DIR)/qnlbnsl
 	@touch $@
 
 $(GPG_IMMERTEC_KEY):

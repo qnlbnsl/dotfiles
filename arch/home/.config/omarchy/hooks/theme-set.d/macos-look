@@ -1,0 +1,8 @@
+#!/bin/bash
+# macOS look: UI font and cursor for GTK apps. omarchy-theme-set-gnome only manages the
+# GTK theme, color scheme and icons, so these are re-applied here on every theme switch
+# (which also covers a fresh machine). Called with the snake-cased theme name.
+command -v gsettings >/dev/null || exit 0
+gsettings set org.gnome.desktop.interface font-name "Inter 11"
+gsettings set org.gnome.desktop.interface cursor-theme "macOS"
+gsettings set org.gnome.desktop.interface cursor-size 24

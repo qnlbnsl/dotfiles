@@ -1,0 +1,7 @@
+# keyd grabs the real keyboard and retypes everything through its own virtual one.
+# libinput treats that as an external keyboard, so "disable touchpad while typing"
+# never pairs it with the touchpad, and a brushing palm taps the caret elsewhere.
+# Marking it internal restores the typing guard. (keyd FAQ)
+[keyd virtual keyboard]
+MatchName=keyd virtual keyboard
+AttrKeyboardIntegration=internal

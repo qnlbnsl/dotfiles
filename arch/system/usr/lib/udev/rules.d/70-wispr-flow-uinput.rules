@@ -1,0 +1,8 @@
+# Wispr Flow: grant the active-session user the input access the helper needs.
+#  - write /dev/uinput        — keystroke injection (PasteText/SimulateKeyPress)
+#  - read  /dev/input/event*  — global key monitor for push-to-talk and the
+#                               in-app shortcut recorder
+# TAG+="uaccess" scopes the grant to the active logind session; the input group
+# + 0660 is the cross-distro fallback (then `usermod -aG input $USER` + re-login).
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess", GROUP="input", MODE="0660"
+SUBSYSTEM=="input", KERNEL=="event*", TAG+="uaccess", GROUP="input", MODE="0660"

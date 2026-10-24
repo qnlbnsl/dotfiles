@@ -20,9 +20,12 @@ create_new_user() {
   # Create the new user and their home directory(-m), set their shell to zsh(-s), and set their password
   sudo useradd -m -s /usr/bin/zsh "$new_username"
   echo "$new_username:$new_password" | sudo chpasswd
-  sudo usermod -aG sudo "$new_username"
+  # Debian's admin group is "sudo"; Arch's is "wheel".
+  admin_group=sudo
+  getent group sudo >/dev/null || admin_group=wheel
+  sudo usermod -aG "$admin_group" "$new_username"
   echo "$new_username ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-$new_username-root"
-  echo "User $new_username created and added to sudo group."
+  echo "User $new_username created and added to $admin_group group."
 
   echo "Updating ssh configuration..."
   if [ ! -f ~/.ssh/authorized_keys ]; then
