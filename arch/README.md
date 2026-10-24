@@ -64,7 +64,8 @@ Omarchy's stock bindings plus macOS equivalents:
 These replace "move window to workspace 3/4" on Super+Shift; Super+Shift+Alt+3/4 still move a window there (without following it).
 
 The area picker is slurp. `.local/bin/slurp` wraps it so it no longer washes the screen
-white (slurp's default, which hid the cursor): a faint dim, a light glass selection, a
+white (slurp's default, which hid the cursor): a 40% mid-gray veil that contrasts both the
+cursor's dark and light edges, a light glass selection, a
 hairline border. It's first on PATH, so Omarchy's screenshot and recording pickers use it.
 
 ## Wispr Flow install (`make arch-wispr`)
