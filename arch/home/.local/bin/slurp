@@ -1,6 +1,6 @@
 #!/bin/bash
-# slurp with macOS-like colors: a 40% mid-gray veil instead of slurp's 25% white wash
+# slurp with macOS-like colors: a 30% mid-gray veil instead of slurp's 25% white wash
 # (which hid the cursor). Mid-gray keeps both the cursor's dark fill and light
 # outline readable; the selection gets a light glass fill and a hairline border.
 # Flags passed by the caller come last, so they still win.
-exec /usr/bin/slurp -b '#80808066' -s '#ffffff1f' -c '#ffffffcc' -B '#ffffff14' -w 1 "$@"
+exec /usr/bin/slurp -b '#8080804d' -s '#ffffff1f' -c '#ffffffcc' -B '#ffffff14' -w 1 "$@"
