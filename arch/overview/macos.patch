@@ -364,7 +364,7 @@ index 2fb08bb..55f6816 100644
      }
  
 diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
-index ca82adb..cb5baa3 100644
+index ca82adb..bb37d39 100644
 --- c/modules/overview/OverviewWidget.qml
 +++ i/modules/overview/OverviewWidget.qml
 @@ -27,8 +27,25 @@ Item {
@@ -395,7 +395,31 @@ index ca82adb..cb5baa3 100644
  
      property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
          ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
-@@ -266,6 +283,8 @@ Item {
+@@ -60,6 +77,23 @@ Item {
+ 
+     property int draggingFromWorkspace: -1
+     property int draggingTargetWorkspace: -1
++    // macOS: while a window is dragged over a desktop, preview where Hyprland's dwindle layout
++    // puts it: the desktop's last-focused tiled window splits in half, and with
++    // dwindle:force_split = 2 the new window goes right (or below, if that window is taller than wide).
++    readonly property var splitTarget: {
++        const ws = draggingTargetWorkspace;
++        if (ws === -1 || ws === draggingFromWorkspace)
++            return null;
++        let best = null;
++        for (const addr in windowByAddress) {
++            const w = windowByAddress[addr];
++            if (w?.workspace?.id !== ws || w.floating || w.pinned)
++                continue;
++            if (!best || w.focusHistoryID < best.focusHistoryID)
++                best = w;
++        }
++        return best;
++    }
+     property string draggingTargetSpecialWorkspace: ""
+     property int previewRecaptureToken: 0
+     property var allWorkspaces: HyprlandData.allWorkspaces
+@@ -266,6 +300,8 @@ Item {
              return "";
          if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
              return trimmed;
@@ -404,7 +428,7 @@ index ca82adb..cb5baa3 100644
          if (trimmed.startsWith("/"))
              return `file://${trimmed}`;
          return trimmed;
-@@ -378,6 +397,7 @@ Item {
+@@ -378,6 +414,7 @@ Item {
  
      StyledRectangularShadow {
          target: overviewBackground
@@ -412,7 +436,7 @@ index ca82adb..cb5baa3 100644
      }
      Rectangle { // Background
          id: overviewBackground
-@@ -388,7 +408,7 @@ Item {
+@@ -388,7 +425,7 @@ Item {
          implicitWidth: contentLayout.implicitWidth + padding * 2
          implicitHeight: contentLayout.implicitHeight + padding * 2
          radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
@@ -421,7 +445,7 @@ index ca82adb..cb5baa3 100644
          color: ColorUtils.applyAlpha(
              root.glassMode
                  ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
-@@ -462,7 +482,11 @@ Item {
+@@ -462,7 +499,11 @@ Item {
                              property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                              property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                              property bool hoveredWhileDragging: false
@@ -433,7 +457,7 @@ index ca82adb..cb5baa3 100644
                              implicitWidth: root.workspaceImplicitWidth
                              implicitHeight: root.workspaceImplicitHeight
                              color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
-@@ -472,11 +496,50 @@ Item {
+@@ -472,11 +513,60 @@ Item {
                                  root.effectiveWorkspaceOpacity
                              )
                              radius: Appearance.rounding.screenRounding * root.scale
@@ -470,6 +494,16 @@ index ca82adb..cb5baa3 100644
 +                                }
 +                            }
 +
++                            Rectangle {
++                                visible: workspace.hoveredWhileDragging && !root.workspaceHasWindows(workspace.workspaceValue)
++                                anchors.fill: parent
++                                anchors.margins: 4
++                                radius: Math.max(0, parent.radius - 4)
++                                color: ColorUtils.applyAlpha("#FFFFFF", 0.22)
++                                border.width: 2
++                                border.color: "#FFFFFF"
++                            }
++
 +                            Text {
 +                                anchors.bottom: parent.top
 +                                anchors.bottomMargin: 8
@@ -487,7 +521,7 @@ index ca82adb..cb5baa3 100644
                              Image {
                                  id: workspaceWallpaper
                                  visible: workspace.showWallpaper
-@@ -562,6 +625,7 @@ Item {
+@@ -562,6 +652,7 @@ Item {
                              MouseArea {
                                  id: workspaceArea
                                  anchors.fill: parent
@@ -495,7 +529,48 @@ index ca82adb..cb5baa3 100644
                                  acceptedButtons: Qt.LeftButton
                                  onClicked: {
                                      if (root.draggingTargetWorkspace === -1) {
-@@ -1194,7 +1258,7 @@ Item {
+@@ -1026,7 +1117,7 @@ Item {
+                         return ToplevelManager.toplevels.values.filter((toplevel) => {
+                             const address = `0x${toplevel.HyprlandToplevel.address}`
+                             var win = windowByAddress[address]
+-                            if (root.isSpecialWorkspace(win))
++                            if (root.isSpecialWorkspace(win) || win?.pinned)
+                                 return false;
+                             const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
+                             const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
+@@ -1068,6 +1159,31 @@ Item {
+                     widgetMonitorData: root.monitorData
+                     scale: root.scale
+                     availableWorkspaceWidth: root.workspaceImplicitWidth
++
++                    readonly property bool splitPreview: root.splitTarget !== null && root.splitTarget.address === windowData?.address
++                    readonly property bool splitSideways: (windowData?.size?.[0] ?? 1) >= (windowData?.size?.[1] ?? 1)
++                    clip: !splitPreview
++                    width: Math.min(targetWindowWidth, availableWorkspaceWidth) * (splitPreview && splitSideways ? 0.5 : 1)
++                    height: Math.min(targetWindowHeight, availableWorkspaceHeight) * (splitPreview && !splitSideways ? 0.5 : 1)
++
++                    Rectangle { // "+" slot where the dropped window will land, in the freed half
++                        visible: window.splitPreview
++                        x: window.splitSideways ? parent.width : 0
++                        y: window.splitSideways ? 0 : parent.height
++                        width: parent.width
++                        height: parent.height
++                        radius: 6
++                        color: ColorUtils.applyAlpha("#FFFFFF", 0.22)
++                        border.width: 3
++                        border.color: "#FFFFFF"
++
++                        Text {
++                            anchors.centerIn: parent
++                            text: "+"
++                            color: "#FFFFFF"
++                            font.pixelSize: Math.max(8, Math.round(Math.min(parent.width, parent.height) * 0.45))
++                        }
++                    }
+                     availableWorkspaceHeight: root.workspaceImplicitHeight
+                     widgetMonitorId: root.monitor.id
+                     recaptureToken: root.previewRecaptureToken
+@@ -1194,7 +1310,7 @@ Item {
                  height: root.workspaceImplicitHeight
                  color: "transparent"
                  radius: Appearance.rounding.screenRounding * root.scale
