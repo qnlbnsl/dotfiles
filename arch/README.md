@@ -47,6 +47,8 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 | 3 or 4 fingers up | open the desktop overview (Mission Control) |
 | 3 or 4 fingers down | close it |
 
+Scrolling is "natural" (Mac direction) on touchpads; mouse wheels are unchanged.
+
 These are Hyprland `hl.gesture` rules, so they work on any libinput touchpad,
 including an Apple Magic Trackpad.
 

@@ -81,3 +81,7 @@ end
 -- Tap-and-drag (double-tap, hold, move) keeps going if you lift and put your finger back
 -- down quickly, so a drag can cross the whole screen (e.g. windows onto Mission Control desktops).
 hl.config({ input = { touchpad = { drag_lock = 1 } } })
+
+-- Mac-style "natural" scrolling: content follows your fingers. Touchpads only, so a mouse
+-- wheel keeps its usual direction.
+hl.config({ input = { touchpad = { natural_scroll = true } } })
