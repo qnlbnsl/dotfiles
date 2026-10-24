@@ -97,3 +97,6 @@ hl.config({
 -- macOS cursor (apple_cursor, an Xcursor theme; Hyprland falls back to Xcursor). The GTK
 -- cursor setting is applied by ~/.config/omarchy/hooks/theme-set.d/macos-look.
 hl.env("XCURSOR_THEME", "macOS")
+
+-- Tighter gaps than Omarchy's 5 / 10 (20% less), closer to macOS's edge-to-edge windows.
+hl.config({ general = { gaps_in = 4, gaps_out = 8 } })

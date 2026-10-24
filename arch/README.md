@@ -19,7 +19,8 @@ arch/
 │       ├── omarchy/themes/macos-graphite/   the macOS theme
 │       ├── hypr/             only files that differ from Omarchy's stock copies
 │       │   ├── input.lua         trackpad gestures (workspace swipes, Mission Control)
-│       │   ├── looknfeel.lua     Wispr Flow window rules
+│       │   ├── looknfeel.lua     Wispr Flow window rules, macOS shape, gaps
+│       │   ├── bindings.lua      macOS-style shortcuts (screenshots)
 │       │   └── autostart.lua     starts the overview
 │       └── quickshell/overview/config.json
 ├── system/                   shared, copied to / with sudo (keyd, udev, modules-load)
@@ -45,6 +46,17 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 
 These are Hyprland `hl.gesture` rules, so they work on any libinput touchpad,
 including an Apple Magic Trackpad.
+
+## Keyboard shortcuts (`bindings.lua`)
+
+Omarchy's stock bindings plus macOS equivalents:
+
+| Keys | Action |
+|---|---|
+| Super+Shift+3 | screenshot of the whole screen (saved to ~/Pictures and copied) |
+| Super+Shift+4 | screenshot of a dragged area |
+
+These replace Omarchy's silent move-to-workspace 3/4 on Super+Shift; Super+Shift+Alt+3/4 still do that.
 
 ## Wispr Flow install (`make arch-wispr`)
 
@@ -110,7 +122,7 @@ colored window border, white keyboard backlight, and an original graphite wallpa
 `omarchy theme set tokyo-night` reverts.
 
 `looknfeel.lua` adds the shape: 12px corners (`rounding_power = 3` for a squircle-ish
-curve), a soft downward shadow, blur behind translucent surfaces, 1px borders.
+curve), a soft downward shadow, blur behind translucent surfaces, 1px borders, and gaps about 20% tighter than stock (4 / 8).
 
 Fonts, icons, cursor (packages: `inter-font`, AUR `whitesur-icon-theme`, `apple_cursor`;
 install with `omarchy pkg add inter-font && omarchy pkg aur add whitesur-icon-theme apple_cursor`):
