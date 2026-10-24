@@ -25,10 +25,10 @@ index 621b39d..6293284 100644
              property real workspaceNumberBaseSize: root.readReal("overview.workspaceNumberBaseSize", 250)
 diff --git c/modules/overview/MissionControlWindows.qml i/modules/overview/MissionControlWindows.qml
 new file mode 100644
-index 0000000..44dc081
+index 0000000..8020536
 --- /dev/null
 +++ i/modules/overview/MissionControlWindows.qml
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,238 @@
 +import QtQuick
 +import QtQuick.Effects
 +import Quickshell
@@ -131,6 +131,11 @@ index 0000000..44dc081
 +                return DesktopEntries.heuristicLookup(entry?.data?.class);
 +            }
 +            property bool dragging: false
++            // Where the window was grabbed, in tile coordinates. The window shrinks around this
++            // point so it stays under the cursor, and the drop target is picked from it too.
++            property real grabX: width / 2
++            property real grabY: height / 2
++            property real dragScale: dragging ? Math.min(1, 220 / Math.max(1, geo.w)) : 1
 +
 +            x: geo.x
 +            y: geo.y
@@ -138,17 +143,23 @@ index 0000000..44dc081
 +            height: geo.h
 +            z: dragging ? 1000 : 0
 +            // Shrink while dragging so the window fits onto a desktop thumbnail, like macOS.
-+            scale: dragging ? Math.min(1, 220 / Math.max(1, geo.w)) : 1
-+            transformOrigin: Item.Center
++            transform: Scale {
++                origin.x: tile.grabX
++                origin.y: tile.grabY
++                xScale: tile.dragScale
++                yScale: tile.dragScale
++            }
 +
 +            Behavior on x { enabled: !tile.dragging; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            Behavior on y { enabled: !tile.dragging; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-+            Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
++            Behavior on dragScale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 +
 +            Drag.active: dragging
 +            Drag.source: tile
++            Drag.hotSpot.x: grabX
++            Drag.hotSpot.y: grabY
 +
 +            RectangularShadow {
 +                anchors.fill: preview
@@ -205,10 +216,13 @@ index 0000000..44dc081
 +                drag.threshold: 8
 +                cursorShape: tile.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
 +
++                onPressed: mouse => {
++                    tile.grabX = mouse.x;
++                    tile.grabY = mouse.y;
++                }
++
 +                drag.onActiveChanged: {
 +                    if (drag.active) {
-+                        tile.Drag.hotSpot.x = mouseX;
-+                        tile.Drag.hotSpot.y = mouseY;
 +                        if (root.widget) {
 +                            root.widget.draggingFromWorkspace = root.workspaceId;
 +                            root.widget.draggingTargetSpecialWorkspace = "";

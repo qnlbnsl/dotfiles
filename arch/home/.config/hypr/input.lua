@@ -69,3 +69,7 @@ for _, fingers in ipairs({ 3, 4 }) do
   hl.gesture({ fingers = fingers, direction = "up", action = overview("open") })
   hl.gesture({ fingers = fingers, direction = "down", action = overview("close") })
 end
+
+-- Tap-and-drag (double-tap, hold, move) keeps going if you lift and put your finger back
+-- down quickly, so a drag can cross the whole screen (e.g. windows onto Mission Control desktops).
+hl.config({ input = { touchpad = { drag_lock = 1 } } })
