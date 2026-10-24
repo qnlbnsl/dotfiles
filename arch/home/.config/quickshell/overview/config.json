@@ -49,7 +49,7 @@
       "gradientTo": "",
       "borderColor": "#40FFFFFF",
       "borderWidth": 1,
-      "bottomPadding": 20
+      "bottomPadding": 16
     },
     "desktopBackground": {
       "color": "#00000000",
@@ -57,7 +57,7 @@
     }
   },
   "position": {
-    "topMargin": 40
+    "topMargin": 37
   },
   "windowPreview": {
     "showIcons": false,

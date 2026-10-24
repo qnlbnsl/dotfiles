@@ -41,8 +41,15 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 | 3 or 4 fingers down | close it |
 
 These are Hyprland `hl.gesture` rules, so they work on any libinput touchpad,
-including an Apple Magic Trackpad. Each is also registered with Ctrl+Super, so
-swipes keep working while Wispr Flow dictation (held Caps Lock) is active.
+including an Apple Magic Trackpad.
+
+## Wispr Flow push-to-talk
+
+Caps Lock sends F19 (keyd, `hosts/razer-13/system/etc/keyd/razer-capslock.conf`),
+and Wispr Flow's push-to-talk is set to F19 alone (hands-free: F19 + Space).
+F19 is unused, so dictation never holds real modifiers that clash with shortcuts.
+Shift+Caps Lock is still real caps lock. On another machine, map a key to F19 the
+same way (or set the shortcut in Wispr's settings).
 
 ## Overview (Mission Control)
 
@@ -57,8 +64,8 @@ restyled like macOS Mission Control:
   While hovering, a glass "+" slot previews where it lands: the window under the
   cursor splits (left/right if it's wide, top/bottom if tall). Moving across it goes
   through four zones: 25% | 50% | 50% | 25%, the side following the cursor.
-- Starting Wispr Flow dictation (Ctrl+Super, held Caps Lock) closes the overview so
-  the text lands in the window underneath.
+- Starting Wispr Flow dictation (F19, i.e. Caps Lock) closes the overview so the
+  text lands in the window underneath.
 - Your wallpaper sits behind everything; pinned windows (like the Wispr pill) are skipped.
 
 Both backgrounds are set in `config.json` under `overview.workspaceBackground`

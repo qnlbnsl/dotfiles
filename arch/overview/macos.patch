@@ -307,7 +307,7 @@ index 0000000..4735ea9
 +    }
 +}
 diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
-index 2fb08bb..f2bf5e9 100644
+index 2fb08bb..fe1adf4 100644
 --- c/modules/overview/Overview.qml
 +++ i/modules/overview/Overview.qml
 @@ -96,6 +96,21 @@ Scope {
@@ -332,16 +332,13 @@ index 2fb08bb..f2bf5e9 100644
                  Rectangle {
                      id: backdropLayer
                      anchors.fill: parent
-@@ -118,6 +133,17 @@ Scope {
+@@ -118,6 +133,14 @@ Scope {
                  }
  
                  Keys.onPressed: event => {
-+                    // close on Ctrl+Super: that's Wispr Flow's dictation hotkey (held Caps Lock via
-+                    // keyd). The overview holds keyboard focus, so dictated text would land here.
-+                    const ctrl = (event.modifiers & Qt.ControlModifier) || event.key === Qt.Key_Control;
-+                    const meta = (event.modifiers & Qt.MetaModifier) || event.key === Qt.Key_Meta
-+                        || event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R;
-+                    if (ctrl && meta) {
++                    // close on F19: that's Wispr Flow's dictation key (Caps Lock via keyd). The
++                    // overview holds keyboard focus, so dictated text would otherwise land here.
++                    if (event.key === Qt.Key_F19) {
 +                        GlobalStates.overviewOpen = false;
 +                        event.accepted = true;
 +                        return;
@@ -350,7 +347,7 @@ index 2fb08bb..f2bf5e9 100644
                      // close: Escape or Enter
                      if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return) {
                          GlobalStates.overviewOpen = false;
-@@ -214,6 +240,45 @@ Scope {
+@@ -214,6 +237,45 @@ Scope {
                  }
              }
  
@@ -396,7 +393,7 @@ index 2fb08bb..f2bf5e9 100644
              ColumnLayout {
                  id: columnLayout
                  visible: GlobalStates.overviewOpen
-@@ -233,6 +298,23 @@ Scope {
+@@ -233,6 +295,23 @@ Scope {
                      }
                  }
              }
