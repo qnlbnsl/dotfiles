@@ -93,3 +93,7 @@ hl.config({
     },
   },
 })
+
+-- macOS cursor (apple_cursor, an Xcursor theme; Hyprland falls back to Xcursor). The GTK
+-- cursor setting is applied by ~/.config/omarchy/hooks/theme-set.d/macos-look.
+hl.env("XCURSOR_THEME", "macOS")

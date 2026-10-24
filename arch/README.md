@@ -94,6 +94,15 @@ colored window border, white keyboard backlight, and an original graphite wallpa
 `looknfeel.lua` adds the shape: 12px corners (`rounding_power = 3` for a squircle-ish
 curve), a soft downward shadow, blur behind translucent surfaces, 1px borders.
 
+Fonts, icons, cursor (packages: `inter-font`, AUR `whitesur-icon-theme`, `apple_cursor`;
+install with `omarchy pkg add inter-font && omarchy pkg aur add whitesur-icon-theme apple_cursor`):
+- Inter for GTK UI text and Mission Control labels (the bar stays on the monospace
+  Nerd Font: Omarchy's shell hard-wires it and draws its icons from it).
+- WhiteSur-dark icons via the theme's `icons.theme`.
+- macOS cursor: `XCURSOR_THEME` in `looknfeel.lua`, GTK via the theme-set hook.
+- `hooks/theme-set.d/macos-look` re-applies the GTK font and cursor on every theme
+  switch (Omarchy's own theme switch doesn't manage them).
+
 ## Notes
 
 - Hyprland reloads on save, but edits made through the symlink target may not

@@ -6,9 +6,9 @@
     },
     "font": {
       "family": {
-        "main": "Noto Sans",
-        "title": "Noto Sans",
-        "expressive": "Noto Sans"
+        "main": "Inter",
+        "title": "Inter",
+        "expressive": "Inter"
       }
     },
     "animation": {
