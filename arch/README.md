@@ -20,9 +20,12 @@ arch/
 │       ├── hypr/             only files that differ from Omarchy's stock copies
 │       │   ├── input.lua         trackpad gestures (workspace swipes, Mission Control)
 │       │   ├── looknfeel.lua     Wispr Flow window rules, macOS shape, gaps
-│       │   ├── bindings.lua      macOS-style shortcuts (screenshots)
+│       │   ├── bindings.lua      macOS-style shortcuts (screenshots, quit)
 │       │   └── autostart.lua     starts the overview
 │       └── quickshell/overview/config.json
+│   └── .local/bin/
+│       ├── mac-quit-app      Super+Q: close every window of the focused app
+│       └── slurp             area-picker colors (wraps /usr/bin/slurp)
 ├── system/                   shared, copied to / with sudo (keyd, udev, modules-load)
 ├── wispr-flow/               Wispr Flow build: install.sh + PKGBUILD.in
 ├── hosts/<hostname>/         per-machine overrides, same home/ + system/ layout; wins over shared
@@ -55,8 +58,14 @@ Omarchy's stock bindings plus macOS equivalents:
 |---|---|
 | Super+Shift+3 | screenshot of the whole screen (saved to ~/Pictures and copied) |
 | Super+Shift+4 | screenshot of a dragged area |
+| Super+Q | quit the focused app: closes all its windows (same window class) |
+| Super+W | close just this window (Omarchy stock) |
 
 These replace "move window to workspace 3/4" on Super+Shift; Super+Shift+Alt+3/4 still move a window there (without following it).
+
+The area picker is slurp. `.local/bin/slurp` wraps it so it no longer washes the screen
+white (slurp's default, which hid the cursor): a faint dim, a light glass selection, a
+hairline border. It's first on PATH, so Omarchy's screenshot and recording pickers use it.
 
 ## Wispr Flow install (`make arch-wispr`)
 

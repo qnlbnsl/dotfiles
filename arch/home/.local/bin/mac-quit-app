@@ -1,0 +1,8 @@
+#!/bin/bash
+# Cmd+Q: close every window of the focused app (matched by window class).
+class=$(hyprctl activewindow -j | jq -r '.class // empty')
+[[ -n $class ]] || exit 0
+hyprctl clients -j | jq -r --arg c "$class" '.[] | select(.class == $c) | .address' |
+  while read -r address; do
+    hyprctl dispatch "hl.dsp.window.close('address:$address')" >/dev/null
+  done

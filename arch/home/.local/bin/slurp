@@ -1,0 +1,5 @@
+#!/bin/bash
+# slurp with macOS-like colors: a faint dim instead of slurp's 25% white wash
+# (which hid the cursor), a light glass selection, a hairline border.
+# Flags passed by the caller come last, so they still win.
+exec /usr/bin/slurp -b '#0000001f' -s '#ffffff1f' -c '#ffffffcc' -B '#ffffff14' -w 1 "$@"

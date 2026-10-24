@@ -36,3 +36,6 @@ hl.unbind("SUPER + SHIFT + code:12")
 hl.unbind("SUPER + SHIFT + code:13")
 o.bind("SUPER + SHIFT + code:12", "Screenshot full screen", "omarchy-capture-screenshot fullscreen")
 o.bind("SUPER + SHIFT + code:13", "Screenshot area", "omarchy-capture-screenshot region")
+
+-- Cmd+Q: quit the focused app, closing all its windows (Super+W still closes just one).
+o.bind("SUPER + Q", "Quit app", "mac-quit-app")
