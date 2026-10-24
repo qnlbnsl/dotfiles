@@ -1,0 +1,35 @@
+# Local wispr-flow-appimage built by arch/wispr-flow/install.sh from a staged
+# wispr-flow-linux AppDir. Same install layout as the AUR package, which
+# extracts the release AppImage into /opt/wispr-flow-appimage.
+pkgname=wispr-flow-appimage
+pkgver=@PKGVER@
+pkgrel=1
+pkgdesc="Wispr Flow voice dictation for Linux (unofficial, local build)"
+arch=('x86_64')
+url="https://github.com/wispr-flow-linux/wispr-flow-linux"
+license=('LicenseRef-proprietary')
+depends=('gtk3' 'nss' 'alsa-lib')
+optdepends=('wl-clipboard: clipboard paste-injection on Wayland')
+provides=('wispr-flow')
+conflicts=('wispr-flow')
+options=(!strip !debug)
+
+_appdir="@APPDIR@"
+
+package() {
+	install -dm755 "${pkgdir}/opt/${pkgname}"
+	cp -a "${_appdir}/." "${pkgdir}/opt/${pkgname}/"
+
+	install -dm755 "${pkgdir}/usr/bin"
+	ln -s "/opt/${pkgname}/AppRun" "${pkgdir}/usr/bin/wispr-flow"
+
+	install -Dm644 "${_appdir}/ai.wisprflow.WisprFlow.desktop" \
+		"${pkgdir}/usr/share/applications/${pkgname}.desktop"
+	sed -i \
+		-e 's|^Exec=.*|Exec=wispr-flow %U|' \
+		-e 's|^Icon=.*|Icon=wispr-flow|' \
+		"${pkgdir}/usr/share/applications/${pkgname}.desktop"
+
+	install -Dm644 "${_appdir}/ai.wisprflow.WisprFlow.png" \
+		"${pkgdir}/usr/share/icons/hicolor/512x512/apps/wispr-flow.png"
+}

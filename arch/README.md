@@ -7,6 +7,7 @@ so an Omarchy update, `omarchy refresh`, or a reinstall can't lose it.
 ```sh
 make arch-config   # link ~/.config files + set up the overview (also runs with `make` on Hyprland machines)
 make arch-system   # install /etc and /usr/lib files with sudo (keyd, uinput, udev)
+make arch-wispr    # build + install the newest Wispr Flow (also runs with `make` on Hyprland machines)
 ```
 
 ## Layout
@@ -22,6 +23,7 @@ arch/
 │       │   └── autostart.lua     starts the overview
 │       └── quickshell/overview/config.json
 ├── system/                   shared, copied to / with sudo (keyd, udev, modules-load)
+├── wispr-flow/               Wispr Flow build: install.sh + PKGBUILD.in
 ├── hosts/<hostname>/         per-machine overrides, same home/ + system/ layout; wins over shared
 │   └── razer-13/             Razer Blade: monitor scale, Caps Lock remap
 └── overview/                 macOS-style workspace overview
@@ -43,6 +45,22 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 
 These are Hyprland `hl.gesture` rules, so they work on any libinput touchpad,
 including an Apple Magic Trackpad.
+
+## Wispr Flow install (`make arch-wispr`)
+
+`wispr-flow/install.sh` builds [wispr-flow-linux](https://github.com/wispr-flow-linux/wispr-flow-linux)
+from the newest Wispr Flow Windows installer (Wispr's `latest.json` manifest, sha256-checked)
+and installs it as the `wispr-flow-appimage` package, the same layout the AUR package uses.
+The AUR package only follows wispr-flow-linux releases, which lag Wispr's own.
+
+- The checkout and build cache live in `~/.cache/wispr-flow-linux`.
+- If the newest installer doesn't build (one of the project's patches stops matching),
+  it falls back to the version the project pins, and remembers the failure in
+  `~/.cache/wispr-flow-linux.failed` so it isn't retried until the project changes.
+  `PINNED=1` builds the pin directly.
+- Does nothing when that version is already installed; `FORCE=1` rebuilds.
+- Stops a running Wispr Flow before installing and starts it again afterwards.
+- Run `make arch-system` once on a new machine for the uinput/udev/keyd setup.
 
 ## Wispr Flow push-to-talk
 

@@ -12,10 +12,10 @@ OVERVIEW_COMMIT := $(shell sed -n 's/^commit=//p' $(ARCH_CFG_DIR)/overview/UPSTR
 
 # Only desktops get this as part of the default install.
 ifneq (,$(wildcard /usr/bin/Hyprland))
-install: arch-config
+install: arch-config arch-wispr
 endif
 
-.PHONY: arch-config arch-links arch-overview arch-overview-save arch-system
+.PHONY: arch-config arch-links arch-overview arch-overview-save arch-system arch-wispr
 
 arch-config: arch-overview arch-links
 	@hyprctl reload >/dev/null 2>&1 && hyprctl configerrors || true
@@ -70,3 +70,9 @@ arch-system:
 		sudo systemctl restart keyd; \
 		echo "keyd restarted: restart Wispr Flow too, or its helper stops hearing keys."; \
 	fi
+
+# Build Wispr Flow from the newest Wispr installer and install it as a package
+# (falls back to wispr-flow-linux's pinned version if the newest doesn't build).
+# No-op when that version is already installed; FORCE=1 rebuilds, PINNED=1 builds the pin.
+arch-wispr:
+	@"$(ARCH_CFG_DIR)/wispr-flow/install.sh"
