@@ -147,6 +147,11 @@ install with `omarchy pkg add inter-font && omarchy pkg aur add whitesur-icon-th
 
 ## Notes
 
+- keyd retypes every key through its own virtual keyboard, which libinput treats as
+  external, so "ignore the touchpad while typing" silently stopped working (palm
+  brushes moved the caret mid-sentence). `system/etc/libinput/local-overrides.quirks`
+  marks it internal; `make arch-system` installs it and restarts keyd to apply.
+
 - Hyprland reloads on save, but edits made through the symlink target may not
   trigger it; run `hyprctl reload && hyprctl configerrors`.
 - After `make arch-system` restarts keyd, restart Wispr Flow
