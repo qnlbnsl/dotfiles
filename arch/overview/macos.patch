@@ -1,0 +1,141 @@
+diff --git c/modules/overview/OverviewWidget.qml w/modules/overview/OverviewWidget.qml
+index ca82adb..c714672 100644
+--- c/modules/overview/OverviewWidget.qml
++++ w/modules/overview/OverviewWidget.qml
+@@ -27,8 +27,25 @@ Item {
+     property var windowAddresses: HyprlandData.addresses
+     property var workspaceIds: HyprlandData.workspaceIds
+     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
+-    property real scale: Config.options.overview.scale
+-    property color activeBorderColor: Appearance.colors.colSecondary
++    // macOS: shrink the desktop thumbnails when there are too many to fit on one row.
++    readonly property real monitorLogicalWidth: Math.max(1, ((monitorData?.transform % 2 === 1) ? monitor.height : monitor.width) / monitor.scale)
++    readonly property real fitScale: (monitorLogicalWidth * 0.92 - Math.max(0, visibleWorkspaceCount - 1) * workspaceSpacing) / (Math.max(1, visibleWorkspaceCount) * monitorLogicalWidth)
++    property real scale: Math.min(Config.options.overview.scale, fitScale)
++    property color activeBorderColor: "#FFFFFF"
++
++    // macOS: show desktops up to the last one in use, plus one empty "+" desktop to switch or drag to.
++    readonly property int firstWorkspaceInGroup: workspaceGroup * workspacesShown + 1 + workspaceOffset
++    readonly property int lastUsedWorkspace: {
++        const last = firstWorkspaceInGroup + workspacesShown - 1;
++        let maxId = effectiveActiveWorkspaceId;
++        for (const addr in windowByAddress) {
++            const id = windowByAddress[addr]?.workspace?.id ?? -1;
++            if (id >= firstWorkspaceInGroup && id <= last)
++                maxId = Math.max(maxId, id);
++        }
++        return maxId;
++    }
++    readonly property int visibleWorkspaceCount: Math.max(1, Math.min(Config.options.overview.columns, lastUsedWorkspace - firstWorkspaceInGroup + 2))
+ 
+     property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
+         ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
+@@ -266,6 +283,8 @@ Item {
+             return "";
+         if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
+             return trimmed;
++        if (trimmed.startsWith("~/"))
++            return `file://${Quickshell.env("HOME")}${trimmed.slice(1)}`;
+         if (trimmed.startsWith("/"))
+             return `file://${trimmed}`;
+         return trimmed;
+@@ -378,6 +397,7 @@ Item {
+ 
+     StyledRectangularShadow {
+         target: overviewBackground
++        visible: root.effectivePanelOpacity > 0
+     }
+     Rectangle { // Background
+         id: overviewBackground
+@@ -388,7 +408,7 @@ Item {
+         implicitWidth: contentLayout.implicitWidth + padding * 2
+         implicitHeight: contentLayout.implicitHeight + padding * 2
+         radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
+-        clip: true
++        clip: false // desktop labels hang below the thumbnails
+         color: ColorUtils.applyAlpha(
+             root.glassMode
+                 ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
+@@ -462,7 +482,11 @@ Item {
+                             property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
+                             property color hoveredBorderColor: Appearance.colors.colLayer2Hover
+                             property bool hoveredWhileDragging: false
++                            property bool isNewDesktop: colIndex === root.visibleWorkspaceCount - 1
++                                && workspaceValue !== root.effectiveActiveWorkspaceId
++                                && !root.workspaceHasWindows(workspaceValue)
+ 
++                            visible: colIndex < root.visibleWorkspaceCount
+                             implicitWidth: root.workspaceImplicitWidth
+                             implicitHeight: root.workspaceImplicitHeight
+                             color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
+@@ -472,11 +496,50 @@ Item {
+                                 root.effectiveWorkspaceOpacity
+                             )
+                             radius: Appearance.rounding.screenRounding * root.scale
+-                            border.width: 2
+-                            border.color: hoveredWhileDragging
+-                                ? ColorUtils.applyAlpha(hoveredBorderColor, root.glassMode ? root.glassBorderOpacity : 1)
++                            border.width: 3
++                            border.color: (hoveredWhileDragging || workspaceArea.containsMouse)
++                                ? ColorUtils.applyAlpha("#FFFFFF", 0.55)
+                                 : "transparent"
+ 
++                            RectangularShadow {
++                                anchors.fill: parent
++                                z: -1
++                                radius: parent.radius
++                                blur: 16
++                                offset: Qt.vector2d(0, 4)
++                                color: "#73000000"
++                            }
++
++                            Rectangle {
++                                visible: workspace.isNewDesktop
++                                anchors.fill: parent
++                                radius: parent.radius
++                                color: ColorUtils.applyAlpha("#000000", 0.45)
++
++                                Text {
++                                    anchors.centerIn: parent
++                                    text: "+"
++                                    color: "#FFFFFF"
++                                    font.pixelSize: Math.round(parent.height * 0.4)
++                                    font.weight: Font.Light
++                                    font.family: Appearance.font.family.main
++                                }
++                            }
++
++                            Text {
++                                anchors.top: parent.bottom
++                                anchors.topMargin: 8
++                                anchors.horizontalCenter: parent.horizontalCenter
++                                text: workspace.isNewDesktop ? "New Desktop" : `Desktop ${workspace.workspaceValue}`
++                                color: "#FFFFFF"
++                                opacity: workspace.workspaceValue === root.effectiveActiveWorkspaceId ? 1 : 0.8
++                                font.pixelSize: Appearance.font.pixelSize.smaller
++                                font.weight: workspace.workspaceValue === root.effectiveActiveWorkspaceId ? Font.DemiBold : Font.Normal
++                                font.family: Appearance.font.family.main
++                                style: Text.Raised
++                                styleColor: "#66000000"
++                            }
++
+                             Image {
+                                 id: workspaceWallpaper
+                                 visible: workspace.showWallpaper
+@@ -562,6 +625,7 @@ Item {
+                             MouseArea {
+                                 id: workspaceArea
+                                 anchors.fill: parent
++                                hoverEnabled: true
+                                 acceptedButtons: Qt.LeftButton
+                                 onClicked: {
+                                     if (root.draggingTargetWorkspace === -1) {
+@@ -1194,7 +1258,7 @@ Item {
+                 height: root.workspaceImplicitHeight
+                 color: "transparent"
+                 radius: Appearance.rounding.screenRounding * root.scale
+-                border.width: 2
++                border.width: 3
+                 border.color: root.activeBorderColor
+                 Behavior on x {
+                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)

@@ -40,8 +40,10 @@ else ifeq ($(UNAME_S),Linux)
   else
     ARCH := $(UNAME_M)
   endif
-  DISTRO_ID := $(shell . /etc/os-release 2>/dev/null && echo $$ID)
-  ifneq (,$(filter $(DISTRO_ID),arch manjaro endeavouros))
+  DISTRO_ID   := $(shell . /etc/os-release 2>/dev/null && echo $$ID)
+  DISTRO_LIKE := $(shell . /etc/os-release 2>/dev/null && echo $$ID_LIKE)
+  # Omarchy 4+ reports ID=omarchy (ID_LIKE=arch); older releases report ID=arch.
+  ifneq (,$(filter arch manjaro endeavouros omarchy,$(DISTRO_ID) $(DISTRO_LIKE)))
     PLATFORM := arch
   else
     PLATFORM := debian

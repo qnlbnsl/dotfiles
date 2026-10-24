@@ -27,11 +27,25 @@ if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
 fi
 
 # Bootstrap: install sudo + minimal deps needed before make can run.
-if ! hash sudo 2>/dev/null; then
-  apt-get update
-  apt-get install -y sudo
+bootstrap_pkgs=(git curl make dialog)
+if hash pacman 2>/dev/null; then
+  # Arch / Omarchy. No -Sy here: on Omarchy, upgrades must go through
+  # `omarchy update` (direct -Syu is blocked by a pacman hook).
+  if ! hash sudo 2>/dev/null; then
+    pacman -S --noconfirm --needed sudo
+  fi
+  if hash omarchy-pkg-add 2>/dev/null; then
+    omarchy-pkg-add "${bootstrap_pkgs[@]}"
+  else
+    sudo pacman -S --noconfirm --needed "${bootstrap_pkgs[@]}"
+  fi
+else
+  if ! hash sudo 2>/dev/null; then
+    apt-get update
+    apt-get install -y sudo
+  fi
+  sudo apt-get install -y "${bootstrap_pkgs[@]}"
 fi
-sudo apt-get install -y git curl make dialog
 
 # User creation (if running as root)
 if [[ $(whoami) == "root" ]]; then
@@ -56,7 +70,7 @@ declare -A descriptions=(
   ["terraform"]="Terraform"
   ["github"]="Setup GitHub CLI"
   ["locales"]="Setup locales"
-  ["sysctl-tune"]="Tune fs watchers / max files"
+  ["sysctl-tune"]="Tune fs watchers"
 )
 
 checklist=()

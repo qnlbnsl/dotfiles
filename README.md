@@ -10,13 +10,27 @@ cd ~/.dotfiles
 make
 ```
 
-On a fresh **Debian/Ubuntu** box (as root or with sudo):
+On a fresh **Debian/Ubuntu**, **Arch** or **Omarchy** box (as root or with sudo):
 
 ```sh
 git clone https://github.com/qnlbnsl/dotfiles ~/.dotfiles
 chmod +x ~/.dotfiles/installers/linux/base.sh
 ~/.dotfiles/installers/linux/base.sh
 ```
+
+### Omarchy notes
+
+Omarchy pins its packages to a snapshot mirror and blocks direct `pacman -Syu`
+(upgrades go through `omarchy update`). On Omarchy the Arch targets therefore:
+
+- install missing packages only (`omarchy-pkg-add`, i.e. `pacman -S --needed`, no sync/upgrade)
+- never remove Omarchy-shipped packages (`make clean_docker` refuses)
+- leave Omarchy's sysctl drop-ins and docker-group policy alone
+  (`omarchy-setup-security-sudoless-docker` if you want sudoless docker)
+
+If a package install 404s, the local db is stale: run `omarchy update` and retry.
+`~/.tmux.conf` takes precedence over Omarchy's `~/.config/tmux/tmux.conf`, and
+`~/.gitconfig` is layered on top of `~/.config/git/config`.
 
 ## What `make` installs
 
@@ -61,13 +75,14 @@ The default `install` target sets up:
 | `make set-shell` | Set default shell to zsh |
 | `make create-user USERNAME=foo` | Create user with sudo NOPASSWD |
 
-### Arch Linux only
+### Arch Linux / Omarchy only
 
 | Target | Description |
 |--------|-------------|
+| `make locales` | Enable en_US.UTF-8 in locale.gen |
+| `make sysctl-tune` | Increase file watchers (no-op on Omarchy, already set) |
 | `make set-shell` | Set default shell to zsh |
 | `make create-user USERNAME=foo` | Create user with sudo NOPASSWD |
-| `make omarchy` | Omarchy UI setup (customize in `arch.mk`) |
 
 ## Updating tool versions
 
@@ -89,8 +104,8 @@ echo "1.58.1" > versions/golangci-lint && make golangci-lint
 │   │   └── .zshenv        macOS-specific env
 │   └── linux/
 │       ├── debian.mk      Debian/Ubuntu: apt, gh repo, docker
-│       ├── arch.mk         Arch: pacman, omarchy
-│       ├── base.sh         Interactive TUI installer for Debian
+│       ├── arch.mk         Arch + Omarchy: pacman / omarchy-pkg-add
+│       ├── base.sh         Interactive TUI installer (Debian, Arch, Omarchy)
 │       └── .zshenv         Linux-specific env
 ├── shell/                 Shared dotfiles (symlinked to ~/)
 ├── versions/              Pinned tool versions

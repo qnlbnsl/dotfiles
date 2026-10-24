@@ -1,0 +1,40 @@
+{
+  "appearance": {
+    "rounding": {
+      "screenRounding": 60,
+      "windowRounding": 40
+    },
+    "font": {
+      "family": { "main": "Noto Sans", "title": "Noto Sans", "expressive": "Noto Sans" }
+    },
+    "animation": {
+      "duration": { "elementMove": 350, "elementMoveEnter": 300, "elementMoveFast": 180 }
+    },
+    "sizes": { "elevationMargin": 0 }
+  },
+  "overview": {
+    "rows": 1,
+    "columns": 10,
+    "scale": 0.16,
+    "hideEmptyRows": false,
+    "closeOnFocusLoss": true,
+    "previewsEnabled": true,
+    "previewMode": "live",
+    "showSpecialWorkspaces": false,
+    "emptyWorkspaceWallpaper": "~/.local/state/omarchy/current/background",
+    "effects": {
+      "enableBackdrop": true,
+      "backdropOpacity": 0.55,
+      "panelOpacity": 0,
+      "workspaceOpacity": 1,
+      "emptyWorkspaceWallpaperOverlayOpacity": 0,
+      "windowOverlayOpacity": 0,
+      "enableBlur": false,
+      "glassMode": false
+    },
+    "workspaceSpacing": 22,
+    "backgroundPadding": 0
+  },
+  "position": { "topMargin": 34 },
+  "windowPreview": { "showIcons": false, "cropToFill": false }
+}
