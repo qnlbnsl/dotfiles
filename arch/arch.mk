@@ -50,9 +50,10 @@ arch-overview:
 		echo "macos.patch does not apply cleanly; see git -C $(OVERVIEW_DIR) status" >&2; exit 1; \
 	fi
 
-# After editing the QML in ~/.config/quickshell/overview, save the changes back here.
+# After editing the QML in ~/.config/quickshell/overview, save the changes (new files too) back here.
 arch-overview-save:
-	@git -C "$(OVERVIEW_DIR)" diff "$(OVERVIEW_COMMIT)" > "$(OVERVIEW_PATCH)"
+	@git -C "$(OVERVIEW_DIR)" add -A
+	@git -C "$(OVERVIEW_DIR)" diff --cached "$(OVERVIEW_COMMIT)" > "$(OVERVIEW_PATCH)"
 	@echo "saved overview changes to arch/overview/macos.patch"
 
 # Root-owned daemons (keyd, udev) read these, so they are copied rather than linked.

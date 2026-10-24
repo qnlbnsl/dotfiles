@@ -46,10 +46,22 @@ including an Apple Magic Trackpad.
 ## Overview (Mission Control)
 
 [quickshell-overview](https://github.com/Shanu-Kumawat/quickshell-overview),
-restyled like macOS Mission Control: one row of desktops along the top, only
-the desktops in use plus a "+" desktop, labels, white ring on the current one,
-dimmed screen behind. Upstream ships no licence file, so this repo keeps only
-our patch, not its source.
+restyled like macOS Mission Control:
+
+- **Workspace background**: a band across the top with one thumbnail per desktop
+  in use, plus a "+ New Desktop". Labels sit above, a white ring marks the current one.
+- **Desktop background**: the area below, where the current desktop's windows are
+  spread out as large live previews. Hover shows the app name, click focuses,
+  middle-click closes. Drag a window onto a desktop thumbnail to move it there;
+  Hyprland tiles it next to what's already on that desktop.
+- Your wallpaper sits behind everything; pinned windows (like the Wispr pill) are skipped.
+
+Both backgrounds are set in `config.json` under `overview.workspaceBackground`
+(`color`, `gradientTo`, `borderColor`, `borderWidth`) and
+`overview.desktopBackground` (`color`, `gradientTo`). Colours are `#AARRGGBB`;
+set `gradientTo` for a top-to-bottom gradient.
+
+Upstream ships no licence file, so this repo keeps only our patch, not its source.
 
 - Look and feel without code: edit `home/.config/quickshell/overview/config.json`.
 - Code changes: edit the QML in `~/.config/quickshell/overview` (a git checkout
