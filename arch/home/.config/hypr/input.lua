@@ -56,9 +56,17 @@
 -- hl.gesture({ fingers = 3, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ direction = "l" })) end })
 -- hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ direction = "r" })) end })
 
+-- Gestures only fire when the held modifiers match exactly, and holding Caps Lock for Wispr Flow
+-- dictation holds Ctrl+Super (keyd), so every swipe is registered both bare and with Ctrl+Super.
+local function swipe(spec)
+  hl.gesture(spec)
+  hl.gesture({ fingers = spec.fingers, direction = spec.direction, action = spec.action, mods = "CTRL + SUPER" })
+end
+
 -- Workspace swipes: 3 or 4 fingers left = next workspace, right = previous.
-hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
-hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
+for _, fingers in ipairs({ 3, 4 }) do
+  swipe({ fingers = fingers, direction = "horizontal", action = "workspace" })
+end
 
 -- Mission Control: 3 or 4 fingers up opens the desktop overview, down closes it.
 -- The overview is quickshell-overview (~/.config/quickshell/overview), started in autostart.lua.
@@ -66,8 +74,8 @@ local function overview(action)
   return function() hl.dispatch(hl.dsp.exec_cmd("qs ipc -c overview call overview " .. action)) end
 end
 for _, fingers in ipairs({ 3, 4 }) do
-  hl.gesture({ fingers = fingers, direction = "up", action = overview("open") })
-  hl.gesture({ fingers = fingers, direction = "down", action = overview("close") })
+  swipe({ fingers = fingers, direction = "up", action = overview("open") })
+  swipe({ fingers = fingers, direction = "down", action = overview("close") })
 end
 
 -- Tap-and-drag (double-tap, hold, move) keeps going if you lift and put your finger back

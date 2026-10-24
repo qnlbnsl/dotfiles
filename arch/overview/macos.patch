@@ -307,7 +307,7 @@ index 0000000..4735ea9
 +    }
 +}
 diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
-index 2fb08bb..55f6816 100644
+index 2fb08bb..f2bf5e9 100644
 --- c/modules/overview/Overview.qml
 +++ i/modules/overview/Overview.qml
 @@ -96,6 +96,21 @@ Scope {
@@ -332,7 +332,25 @@ index 2fb08bb..55f6816 100644
                  Rectangle {
                      id: backdropLayer
                      anchors.fill: parent
-@@ -214,6 +229,45 @@ Scope {
+@@ -118,6 +133,17 @@ Scope {
+                 }
+ 
+                 Keys.onPressed: event => {
++                    // close on Ctrl+Super: that's Wispr Flow's dictation hotkey (held Caps Lock via
++                    // keyd). The overview holds keyboard focus, so dictated text would land here.
++                    const ctrl = (event.modifiers & Qt.ControlModifier) || event.key === Qt.Key_Control;
++                    const meta = (event.modifiers & Qt.MetaModifier) || event.key === Qt.Key_Meta
++                        || event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R;
++                    if (ctrl && meta) {
++                        GlobalStates.overviewOpen = false;
++                        event.accepted = true;
++                        return;
++                    }
++
+                     // close: Escape or Enter
+                     if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return) {
+                         GlobalStates.overviewOpen = false;
+@@ -214,6 +240,45 @@ Scope {
                  }
              }
  
@@ -378,7 +396,7 @@ index 2fb08bb..55f6816 100644
              ColumnLayout {
                  id: columnLayout
                  visible: GlobalStates.overviewOpen
-@@ -233,6 +287,23 @@ Scope {
+@@ -233,6 +298,23 @@ Scope {
                      }
                  }
              }
@@ -403,10 +421,18 @@ index 2fb08bb..55f6816 100644
      }
  
 diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
-index ca82adb..e7cf0db 100644
+index ca82adb..04e408d 100644
 --- c/modules/overview/OverviewWidget.qml
 +++ i/modules/overview/OverviewWidget.qml
-@@ -27,8 +27,25 @@ Item {
+@@ -2,6 +2,7 @@ import QtQuick
+ import QtQuick.Effects
+ import QtQuick.Layouts
+ import Quickshell
++import Quickshell.Io
+ import Quickshell.Wayland
+ import Quickshell.Hyprland
+ import "../../common"
+@@ -27,8 +28,25 @@ Item {
      property var windowAddresses: HyprlandData.addresses
      property var workspaceIds: HyprlandData.workspaceIds
      property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
@@ -434,7 +460,7 @@ index ca82adb..e7cf0db 100644
  
      property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
          ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
-@@ -60,6 +77,83 @@ Item {
+@@ -60,6 +78,119 @@ Item {
  
      property int draggingFromWorkspace: -1
      property int draggingTargetWorkspace: -1
@@ -465,13 +491,19 @@ index ca82adb..e7cf0db 100644
 +        return best;
 +    }
 +    readonly property bool splitSideways: splitTarget ? splitTarget.size[0] > splitTarget.size[1] : true
-+    // true: the new window takes the left (or top) half; false: right (or bottom).
-+    readonly property bool splitFirst: {
++    // How far across the target window the cursor is (0 = left/top edge, 1 = right/bottom edge).
++    readonly property real splitPosition: {
 +        if (!splitTarget || !dropPoint)
-+            return false;
-+        return splitSideways ? dropPoint.x < splitTarget.at[0] + splitTarget.size[0] / 2
-+                             : dropPoint.y < splitTarget.at[1] + splitTarget.size[1] / 2;
++            return 1;
++        const t = splitSideways ? (dropPoint.x - splitTarget.at[0]) / splitTarget.size[0]
++                                : (dropPoint.y - splitTarget.at[1]) / splitTarget.size[1];
++        return Math.max(0, Math.min(1, t));
 +    }
++    // Drop zones across the window: 25% | 50% | 50% | 25%. The outer quarters give the new
++    // window a quarter of the space, the inner ones half; which side follows the cursor.
++    readonly property bool splitFirst: splitPosition < 0.5
++    readonly property real splitShare: (splitPosition < 0.25 || splitPosition >= 0.75) ? 0.25 : 0.5
++    property real defaultSplitRatio: 1
 +
 +    function thumbnailToGlobal(px, py) {
 +        return {
@@ -495,30 +527,60 @@ index ca82adb..e7cf0db 100644
 +            workspace: workspace,
 +            target: splitTarget?.address ?? "",
 +            first: splitFirst,
++            share: splitShare,
 +            point: dropPoint,
 +            cursor: dropCursor
 +        };
 +    }
 +
++    // Runs as one ordered `hyprctl --batch`:
++    //  1. set dwindle's split ratio for the new split (the first child gets ratio/2 of the space);
++    //  2. point the cursor at the hovered spot, since Hyprland splits the window nearest the cursor;
++    //  3. move the window; force_split = 2 opens it on the right/bottom;
++    //  4. swap for a left/top drop, then restore the ratio and the cursor.
 +    function dropWindow(address, plan) {
++        const move = `hl.dsp.window.move({workspace = '${plan.workspace}', follow = false, window = 'address:${address}'})`;
 +        if (!Hyprland.usingLua) {
 +            Hyprland.dispatch(`movetoworkspacesilent ${plan.workspace}, address:${address}`);
 +            return;
 +        }
-+        // Hyprland splits the window nearest the cursor, so point it at the hovered spot for the move.
-+        if (plan.point)
-+            Hyprland.dispatch(`hl.dsp.cursor.move({x = ${plan.point.x}, y = ${plan.point.y}})`);
-+        Hyprland.dispatch(`hl.dsp.window.move({workspace = '${plan.workspace}', follow = false, window = 'address:${address}'})`);
-+        // force_split = 2 always opens on the right/bottom; swap for a left/top drop.
-+        if (plan.first && plan.target)
-+            Hyprland.dispatch(`hl.dsp.window.swap({target = 'address:${plan.target}', window = 'address:${address}'})`);
++        if (!plan.target || !plan.point) {
++            Hyprland.dispatch(move);
++            return;
++        }
++        // The new window lands second; after a swap it sits in the first slot instead.
++        const ratio = plan.first ? plan.share * 2 : (1 - plan.share) * 2;
++        const cmds = [
++            `eval hl.config({ dwindle = { default_split_ratio = ${ratio} } })`,
++            `dispatch hl.dsp.cursor.move({x = ${plan.point.x}, y = ${plan.point.y}})`,
++            `dispatch ${move}`
++        ];
++        if (plan.first)
++            cmds.push(`dispatch hl.dsp.window.swap({target = 'address:${plan.target}', window = 'address:${address}'})`);
++        cmds.push(`eval hl.config({ dwindle = { default_split_ratio = ${root.defaultSplitRatio} } })`);
 +        if (plan.cursor)
-+            Hyprland.dispatch(`hl.dsp.cursor.move({x = ${plan.cursor.x}, y = ${plan.cursor.y}})`);
++            cmds.push(`dispatch hl.dsp.cursor.move({x = ${plan.cursor.x}, y = ${plan.cursor.y}})`);
++        Quickshell.execDetached(["hyprctl", "--batch", cmds.join(" ; ")]);
++    }
++
++    // Remember the configured split ratio so dropWindow() can put it back.
++    Process {
++        running: true
++        command: ["hyprctl", "getoption", "dwindle:default_split_ratio", "-j"]
++        stdout: StdioCollector {
++            onStreamFinished: {
++                try {
++                    const value = JSON.parse(text)?.float;
++                    if (Number.isFinite(value))
++                        root.defaultSplitRatio = value;
++                } catch (e) {}
++            }
++        }
 +    }
      property string draggingTargetSpecialWorkspace: ""
      property int previewRecaptureToken: 0
      property var allWorkspaces: HyprlandData.allWorkspaces
-@@ -266,6 +360,8 @@ Item {
+@@ -266,6 +397,8 @@ Item {
              return "";
          if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
              return trimmed;
@@ -527,7 +589,7 @@ index ca82adb..e7cf0db 100644
          if (trimmed.startsWith("/"))
              return `file://${trimmed}`;
          return trimmed;
-@@ -378,6 +474,7 @@ Item {
+@@ -378,6 +511,7 @@ Item {
  
      StyledRectangularShadow {
          target: overviewBackground
@@ -535,7 +597,7 @@ index ca82adb..e7cf0db 100644
      }
      Rectangle { // Background
          id: overviewBackground
-@@ -388,7 +485,7 @@ Item {
+@@ -388,7 +522,7 @@ Item {
          implicitWidth: contentLayout.implicitWidth + padding * 2
          implicitHeight: contentLayout.implicitHeight + padding * 2
          radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
@@ -544,7 +606,7 @@ index ca82adb..e7cf0db 100644
          color: ColorUtils.applyAlpha(
              root.glassMode
                  ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
-@@ -462,7 +559,11 @@ Item {
+@@ -462,7 +596,11 @@ Item {
                              property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                              property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                              property bool hoveredWhileDragging: false
@@ -556,7 +618,7 @@ index ca82adb..e7cf0db 100644
                              implicitWidth: root.workspaceImplicitWidth
                              implicitHeight: root.workspaceImplicitHeight
                              color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
-@@ -472,11 +573,57 @@ Item {
+@@ -472,11 +610,57 @@ Item {
                                  root.effectiveWorkspaceOpacity
                              )
                              radius: Appearance.rounding.screenRounding * root.scale
@@ -617,7 +679,7 @@ index ca82adb..e7cf0db 100644
                              Image {
                                  id: workspaceWallpaper
                                  visible: workspace.showWallpaper
-@@ -562,6 +709,7 @@ Item {
+@@ -562,6 +746,7 @@ Item {
                              MouseArea {
                                  id: workspaceArea
                                  anchors.fill: parent
@@ -625,7 +687,7 @@ index ca82adb..e7cf0db 100644
                                  acceptedButtons: Qt.LeftButton
                                  onClicked: {
                                      if (root.draggingTargetWorkspace === -1) {
-@@ -576,16 +724,22 @@ Item {
+@@ -576,16 +761,22 @@ Item {
                              }
  
                              DropArea {
@@ -650,7 +712,7 @@ index ca82adb..e7cf0db 100644
                                  }
                              }
  
-@@ -1026,7 +1180,7 @@ Item {
+@@ -1026,7 +1217,7 @@ Item {
                          return ToplevelManager.toplevels.values.filter((toplevel) => {
                              const address = `0x${toplevel.HyprlandToplevel.address}`
                              var win = windowByAddress[address]
@@ -659,7 +721,7 @@ index ca82adb..e7cf0db 100644
                                  return false;
                              const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
                              const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
-@@ -1068,6 +1222,26 @@ Item {
+@@ -1068,6 +1259,37 @@ Item {
                      widgetMonitorData: root.monitorData
                      scale: root.scale
                      availableWorkspaceWidth: root.workspaceImplicitWidth
@@ -667,26 +729,37 @@ index ca82adb..e7cf0db 100644
 +                    readonly property bool splitPreview: root.splitTarget !== null && root.splitTarget.address === windowData?.address
 +                    readonly property bool splitSideways: root.splitSideways
 +                    readonly property bool splitFirst: root.splitFirst
++                    readonly property real fullWidth: Math.min(targetWindowWidth, availableWorkspaceWidth)
++                    readonly property real fullHeight: Math.min(targetWindowHeight, availableWorkspaceHeight)
++                    // Size of the slot the dropped window takes (25% or 50% of this window), 0 when idle.
++                    readonly property real slotWidth: splitPreview && splitSideways ? fullWidth * root.splitShare : 0
++                    readonly property real slotHeight: splitPreview && !splitSideways ? fullHeight * root.splitShare : 0
 +                    clip: !splitPreview
-+                    width: Math.min(targetWindowWidth, availableWorkspaceWidth) * (splitPreview && splitSideways ? 0.5 : 1)
-+                    height: Math.min(targetWindowHeight, availableWorkspaceHeight) * (splitPreview && !splitSideways ? 0.5 : 1)
-+                    // When the new window takes the left/top half, this one shifts to the other half.
++                    width: fullWidth - slotWidth
++                    height: fullHeight - slotHeight
++                    // When the new window takes the left/top, this one slides over to make room.
 +                    transform: Translate {
-+                        x: window.splitPreview && window.splitSideways && window.splitFirst ? window.width : 0
-+                        y: window.splitPreview && !window.splitSideways && window.splitFirst ? window.height : 0
++                        x: window.splitFirst ? window.slotWidth : 0
++                        y: window.splitFirst ? window.slotHeight : 0
++                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                        Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +                    }
 +
-+                    GlassSlot { // "+" slot where the dropped window will land, in the freed half
-+                        visible: window.splitPreview
-+                        x: window.splitSideways ? (window.splitFirst ? -parent.width : parent.width) : 0
-+                        y: window.splitSideways ? 0 : (window.splitFirst ? -parent.height : parent.height)
-+                        width: parent.width
-+                        height: parent.height
++                    GlassSlot { // "+" slot where the dropped window will land
++                        opacity: window.splitPreview ? 1 : 0
++                        visible: opacity > 0
++                        x: window.splitSideways ? (window.splitFirst ? -width : parent.width) : 0
++                        y: window.splitSideways ? 0 : (window.splitFirst ? -height : parent.height)
++                        width: window.splitSideways ? Math.max(window.slotWidth, 1) : parent.width
++                        height: window.splitSideways ? parent.height : Math.max(window.slotHeight, 1)
++                        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
++                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                        Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +                    }
                      availableWorkspaceHeight: root.workspaceImplicitHeight
                      widgetMonitorId: root.monitor.id
                      recaptureToken: root.previewRecaptureToken
-@@ -1113,6 +1287,7 @@ Item {
+@@ -1113,6 +1335,7 @@ Item {
                          }
                          onReleased: {
                              const targetWorkspace = root.draggingTargetWorkspace
@@ -694,7 +767,7 @@ index ca82adb..e7cf0db 100644
                              const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
                              window.pressed = false
                              window.Drag.active = false
-@@ -1140,11 +1315,7 @@ Item {
+@@ -1140,11 +1363,7 @@ Item {
                              }
                              else if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
                                  //INFO: From normal TO normal
@@ -707,7 +780,7 @@ index ca82adb..e7cf0db 100644
                                  updateWindowPosition.restart()
                              }
                              else {
-@@ -1194,7 +1365,7 @@ Item {
+@@ -1194,7 +1413,7 @@ Item {
                  height: root.workspaceImplicitHeight
                  color: "transparent"
                  radius: Appearance.rounding.screenRounding * root.scale

@@ -41,7 +41,8 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 | 3 or 4 fingers down | close it |
 
 These are Hyprland `hl.gesture` rules, so they work on any libinput touchpad,
-including an Apple Magic Trackpad.
+including an Apple Magic Trackpad. Each is also registered with Ctrl+Super, so
+swipes keep working while Wispr Flow dictation (held Caps Lock) is active.
 
 ## Overview (Mission Control)
 
@@ -54,8 +55,10 @@ restyled like macOS Mission Control:
   spread out as large live previews. Hover shows the app name, click focuses,
   middle-click closes. Drag a window onto a desktop thumbnail to move it there.
   While hovering, a glass "+" slot previews where it lands: the window under the
-  cursor splits in half (left/right if it's wide, top/bottom if tall) and the half
-  you hover is the side the new window takes.
+  cursor splits (left/right if it's wide, top/bottom if tall). Moving across it goes
+  through four zones: 25% | 50% | 50% | 25%, the side following the cursor.
+- Starting Wispr Flow dictation (Ctrl+Super, held Caps Lock) closes the overview so
+  the text lands in the window underneath.
 - Your wallpaper sits behind everything; pinned windows (like the Wispr pill) are skipped.
 
 Both backgrounds are set in `config.json` under `overview.workspaceBackground`
