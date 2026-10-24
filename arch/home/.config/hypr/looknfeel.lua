@@ -65,3 +65,31 @@ o.window({ class = "^wispr-flow$", title = "^(Status|Flow Status Indicator)$" },
   opacity = "1 1",
   move = { "(monitor_w/2-window_w/2)", "(monitor_h-window_h)" },
 })
+
+-- macOS shape language: rounded "squircle-ish" corners, a soft drop shadow, frosted blur
+-- behind translucent surfaces, and a 1px hairline border (its color comes from the theme:
+-- hyprland_active_border in ~/.config/omarchy/themes/macos-graphite/colors.toml).
+hl.config({
+  general = {
+    border_size = 1,
+  },
+  decoration = {
+    rounding = 12,
+    rounding_power = 3,
+    shadow = {
+      enabled = true,
+      range = 32,
+      render_power = 3,
+      offset = "0 8",
+      color = "rgba(00000066)",
+      color_inactive = "rgba(00000038)",
+    },
+    blur = {
+      enabled = true,
+      size = 8,
+      passes = 3,
+      vibrancy = 0.2,
+      noise = 0.015,
+    },
+  },
+})

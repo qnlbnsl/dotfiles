@@ -15,6 +15,7 @@ make arch-system   # install /etc and /usr/lib files with sudo (keyd, uinput, ud
 arch/
 ├── home/                     shared, symlinked into ~ (file by file)
 │   └── .config/
+│       ├── omarchy/themes/macos-graphite/   the macOS theme
 │       ├── hypr/             only files that differ from Omarchy's stock copies
 │       │   ├── input.lua         trackpad gestures (workspace swipes, Mission Control)
 │       │   ├── looknfeel.lua     Wispr Flow window rules
@@ -80,6 +81,18 @@ Upstream ships no licence file, so this repo keeps only our patch, not its sourc
   on branch `macos`), then `make arch-overview-save` to write `macos.patch`.
 - Reload after changes: `pkill -x qs; qs -c overview &` (or log out and in).
 - Toggle by hand: `qs ipc -c overview call overview toggle`.
+
+## macOS look (`macos-graphite` theme)
+
+`home/.config/omarchy/themes/macos-graphite/` is an Omarchy theme modelled on macOS
+dark mode with the Graphite accent: neutral grays (#1e1e1e / #323232 / #464646),
+Apple's system colors for the terminal palette, a faint white hairline instead of a
+colored window border, white keyboard backlight, and an original graphite wallpaper
+(plus links to a few stock ones). Apply with `omarchy theme set macos-graphite`;
+`omarchy theme set tokyo-night` reverts.
+
+`looknfeel.lua` adds the shape: 12px corners (`rounding_power = 3` for a squircle-ish
+curve), a soft downward shadow, blur behind translucent surfaces, 1px borders.
 
 ## Notes
 

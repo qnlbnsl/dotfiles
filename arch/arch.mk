@@ -20,12 +20,13 @@ endif
 arch-config: arch-overview arch-links
 	@hyprctl reload >/dev/null 2>&1 && hyprctl configerrors || true
 
-# Symlink every file in arch/home, then arch/hosts/<host>/home (which wins), into ~.
+# Symlink every file (or symlink, e.g. a theme's wallpaper) in arch/home, then
+# arch/hosts/<host>/home (which wins), into ~.
 # A regular file in the way is moved to <file>.bak.<timestamp> first.
 arch-links:
 	@for root in "$(ARCH_CFG_DIR)/home" "$(ARCH_HOST_DIR)/home"; do \
 		[ -d "$$root" ] || continue; \
-		(cd "$$root" && find . -type f) | while read -r f; do \
+		(cd "$$root" && find . -type f -o -type l) | while read -r f; do \
 			f="$${f#./}"; dst="$(HOME)/$$f"; \
 			mkdir -p "$$(dirname "$$dst")"; \
 			if [ -e "$$dst" ] && [ ! -L "$$dst" ]; then \

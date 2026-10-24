@@ -25,15 +25,15 @@ index 621b39d..6293284 100644
              property real workspaceNumberBaseSize: root.readReal("overview.workspaceNumberBaseSize", 250)
 diff --git c/modules/overview/GlassSlot.qml i/modules/overview/GlassSlot.qml
 new file mode 100644
-index 0000000..c647941
+index 0000000..aa1b6b8
 --- /dev/null
 +++ i/modules/overview/GlassSlot.qml
 @@ -0,0 +1,38 @@
 +import QtQuick
 +import "../../common"
 +
-+// macOS "liquid glass": a frosted, faintly cool-tinted pane with a soft top highlight and a hairline
-+// edge. Marks where a dragged window will land.
++// macOS "liquid glass": a frosted, neutral pane (Liquid Glass has no color of its own) with a soft
++// top highlight and a hairline edge. Marks where a dragged window will land.
 +Rectangle {
 +    id: root
 +    radius: 6
@@ -41,9 +41,9 @@ index 0000000..c647941
 +    border.width: 1
 +    border.color: "#8CFFFFFF"
 +    gradient: Gradient {
-+        GradientStop { position: 0.0; color: "#5CF4F8FF" }
-+        GradientStop { position: 0.45; color: "#29DCE8FF" }
-+        GradientStop { position: 1.0; color: "#14C8D8FF" }
++        GradientStop { position: 0.0; color: "#5CFFFFFF" }
++        GradientStop { position: 0.45; color: "#29FFFFFF" }
++        GradientStop { position: 1.0; color: "#14FFFFFF" }
 +    }
 +
 +    // Inner hairline: the second edge that gives glass its depth.
