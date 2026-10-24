@@ -49,7 +49,7 @@ To set up another machine, add `hosts/<its hostname>/` with whatever differs
 
 Scrolling is "natural" (Mac direction) on touchpads; mouse wheels are unchanged.
 
-A swipe commits once it passes 20% of the way (stock 50%) or on a gentle flick, and the
+A swipe commits once it passes 35% of the way (stock 50%) or on a gentle flick, and the
 desktop slides into place with an ease-out (~0.45s, `looknfeel.lua`). Omarchy ships
 workspace animations off, which made releases jump or snap back instantly.
 
