@@ -45,11 +45,11 @@ including an Apple Magic Trackpad.
 
 ## Wispr Flow push-to-talk
 
-Caps Lock sends F19 (keyd, `hosts/razer-13/system/etc/keyd/razer-capslock.conf`),
-and Wispr Flow's push-to-talk is set to F19 alone (hands-free: F19 + Space).
-F19 is unused, so dictation never holds real modifiers that clash with shortcuts.
-Shift+Caps Lock is still real caps lock. On another machine, map a key to F19 the
-same way (or set the shortcut in Wispr's settings).
+Holding Caps Lock holds Ctrl+F19 (keyd, `hosts/razer-13/system/etc/keyd/razer-capslock.conf`),
+and Wispr Flow's push-to-talk is Ctrl+F19 (hands-free: Ctrl+F19+Space; Wispr insists
+on a modifier). F19 is unused, so the chord can't fire real Ctrl shortcuts. Swipes are
+also registered with Ctrl so they work while dictating. Shift+Caps Lock is still real
+caps lock. On another machine, map a key to Ctrl+F19 the same way.
 
 ## Overview (Mission Control)
 
