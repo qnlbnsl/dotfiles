@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+# Global git hook dispatcher, enabled by `core.hooksPath = ~/.dotfiles/git/hooks`
+# in shell/.gitconfig. Every hook name in this folder is a symlink to this file.
+#
+# A global hooksPath replaces each repo's own .git/hooks, so after any global
+# check this hands off to the repo's hook of the same name (git-lfs and other
+# per-repo hooks keep working). Repos that set their own core.hooksPath (husky)
+# never reach this file; their hook calls the guard directly, e.g.
+#   g="$HOME/.dotfiles/git/hooks/commit-msg-guard"; [ -x "$g" ] && "$g" "$1"
+
+name=$(basename "$0")
+here=$(cd "$(dirname "$0")" && pwd -P)
+
+if [ "$name" = "commit-msg" ]; then
+  "$here/commit-msg-guard" "$1" || exit 1
+fi
+
+repo_hook="$(git rev-parse --git-common-dir 2>/dev/null)/hooks/$name"
+if [ -x "$repo_hook" ] && [ "$(cd "$(dirname "$repo_hook")" && pwd -P)" != "$here" ]; then
+  exec "$repo_hook" "$@"
+fi
+exit 0

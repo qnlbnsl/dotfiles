@@ -1,0 +1,5 @@
+# Included for repos whose subject is AI models (Founder OS: the model sheet
+# and model ledger name models in every other commit). The commit-msg guard
+# still blocks Co-Authored-By, session trailers and "Generated with" lines.
+[hooks]
+	allowModelNames = true

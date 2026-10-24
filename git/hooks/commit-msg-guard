@@ -1,0 +1,40 @@
+#!/usr/bin/env sh
+# Block AI attribution in commit messages, on every repo and machine.
+# Runs for `git commit`, `gcs` (git commit --gpg-sign), merges and amends,
+# whichever agent or person commits. Bypass only with --no-verify.
+#
+# Blocked: Co-Authored-By / Claude-Session trailers, robot "Generated with"
+# lines, the robot emoji, and model or vendor names (Claude, Opus, Sonnet,
+# Haiku, Fable, Codex, GPT, OpenAI, Anthropic, ChatGPT, Gemini, Grok, Copilot).
+# Allowed: the file names CLAUDE.md and .claude/ (naming a file is not
+# attribution). "cursor" is not listed: it is an ordinary code word.
+# Opt a repo out (for one whose subject is AI models):
+#   git config hooks.allowModelNames true
+
+msg_file="$1"
+[ -f "$msg_file" ] || exit 0
+
+if [ "$(git config --bool hooks.allowModelNames 2>/dev/null)" = "true" ]; then
+  names=''
+else
+  names='(^|[^a-z0-9])(claude|opus|sonnet|haiku|fable|codex|gpt|openai|anthropic|chatgpt|gemini|grok|copilot)([^a-z0-9]|$)'
+fi
+
+# Drop git's comment lines, then the allowed file names, before matching.
+body=$(grep -v '^#' "$msg_file" | sed -e 's/CLAUDE\.md//g' -e 's#\.claude/##g')
+
+hits=$(printf '%s\n' "$body" | grep -n -i -E \
+  -e 'co-authored-by' \
+  -e 'claude-session' \
+  -e 'generated with \[?(claude|codex|cursor)' \
+  -e '🤖' \
+  ${names:+-e "$names"} \
+  || true)
+
+if [ -n "$hits" ]; then
+  echo "commit-msg: AI attribution or model names are not allowed in commit messages." >&2
+  echo "Remove these lines or words, then commit again:" >&2
+  printf '%s\n' "$hits" | sed 's/^/  line /' >&2
+  exit 1
+fi
+exit 0

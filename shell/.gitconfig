@@ -43,6 +43,15 @@ path = ~/.gitconfig.local
 
 [core]
 excludesfile = ~/.gitignore.global
+# Global hooks: blocks AI attribution in commit messages, then hands off to
+# each repo's own .git/hooks. See ~/.dotfiles/git/hooks/dispatch.
+hooksPath = ~/.dotfiles/git/hooks
+
+# Founder OS commits name models by design; trailers stay blocked there.
+[includeIf "hasconfig:remote.*.url:git@github.com:qnlbnsl/founder-os*"]
+path = ~/.dotfiles/git/allow-model-names.gitconfig
+[includeIf "hasconfig:remote.*.url:https://github.com/qnlbnsl/founder-os*"]
+path = ~/.dotfiles/git/allow-model-names.gitconfig
 [filter "lfs"]
 clean = git-lfs clean -- %f
 smudge = git-lfs smudge -- %f
