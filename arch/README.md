@@ -52,8 +52,10 @@ restyled like macOS Mission Control:
   in use, plus a "+ New Desktop". Labels sit above, a white ring marks the current one.
 - **Desktop background**: the area below, where the current desktop's windows are
   spread out as large live previews. Hover shows the app name, click focuses,
-  middle-click closes. Drag a window onto a desktop thumbnail to move it there;
-  Hyprland tiles it next to what's already on that desktop.
+  middle-click closes. Drag a window onto a desktop thumbnail to move it there.
+  While hovering, a glass "+" slot previews where it lands: the window under the
+  cursor splits in half (left/right if it's wide, top/bottom if tall) and the half
+  you hover is the side the new window takes.
 - Your wallpaper sits behind everything; pinned windows (like the Wispr pill) are skipped.
 
 Both backgrounds are set in `config.json` under `overview.workspaceBackground`
