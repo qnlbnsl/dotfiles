@@ -41,6 +41,25 @@ awk -v key="$key" '
   { print }
 ' "$template" > "$dest"
 
+# Machine-specific paths, found on this machine at render time so the shared
+# shell/.gitconfig never carries them (/bin/gpg on Linux is
+# /opt/homebrew/bin/gpg on a Mac). The rendered profile is gitignored and
+# included through ~/.gitconfig.local.
+gpg_bin=$(command -v gpg 2>/dev/null || true)
+gh_bin=$(command -v gh 2>/dev/null || true)
+{
+  echo
+  echo "# --- machine-specific, rendered by $(basename "$0") ---"
+  if [[ -n "$key" && -n "$gpg_bin" ]]; then
+    printf '[gpg]\n  program = %s\n' "$gpg_bin"
+  fi
+  if [[ -n "$gh_bin" ]]; then
+    for host in https://github.com https://gist.github.com; do
+      printf '[credential "%s"]\n  helper =\n  helper = !%s auth git-credential\n' "$host" "$gh_bin"
+    done
+  fi
+} >> "$dest"
+
 if [[ -n "$key" ]]; then
   echo "wrote $dest (gpg on, $email $key)"
 else
