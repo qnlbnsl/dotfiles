@@ -100,3 +100,7 @@ hl.env("XCURSOR_THEME", "macOS")
 
 -- Tighter gaps than Omarchy's 5 / 10 (20% less), closer to macOS's edge-to-edge windows.
 hl.config({ general = { gaps_in = 4, gaps_out = 8 } })
+
+-- Omarchy turns workspace animations off, so a released swipe jumped to its end
+-- (or snapped back) instantly. Slide it with a soft ease-out instead (~0.45s).
+hl.animation({ leaf = "workspaces", enabled = true, speed = 4.5, bezier = "easeOutQuint", style = "slide" })

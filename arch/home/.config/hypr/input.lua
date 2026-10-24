@@ -85,3 +85,7 @@ hl.config({ input = { touchpad = { drag_lock = 1 } } })
 -- Mac-style "natural" scrolling: content follows your fingers. Touchpads only, so a mouse
 -- wheel keeps its usual direction.
 hl.config({ input = { touchpad = { natural_scroll = true } } })
+
+-- Mac-like workspace swipes: commit once past 20% of the distance (stock 50%) or on a
+-- gentler flick, instead of snapping back. The slide itself is in looknfeel.lua.
+hl.config({ gestures = { workspace_swipe_cancel_ratio = 0.2, workspace_swipe_min_speed_to_force = 10 } })
