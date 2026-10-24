@@ -102,5 +102,6 @@ hl.env("XCURSOR_THEME", "macOS")
 hl.config({ general = { gaps_in = 4, gaps_out = 8 } })
 
 -- Omarchy turns workspace animations off, so a released swipe jumped to its end
--- (or snapped back) instantly. Slide it with a soft ease-out instead (~0.45s).
-hl.animation({ leaf = "workspaces", enabled = true, speed = 4.5, bezier = "easeOutQuint", style = "slide" })
+-- (or snapped back) instantly. Slide it with a soft ease-out instead, 0.4s like macOS
+-- (Apple publishes no figure; reported Spaces switches run ~0.3-0.5s, typically ~400ms).
+hl.animation({ leaf = "workspaces", enabled = true, speed = 4, bezier = "easeOutQuint", style = "slide" })
