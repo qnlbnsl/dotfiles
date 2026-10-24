@@ -30,7 +30,7 @@ PURGE_LIST = .cache .emacs.d .yarn .npm .node-gyp .elinks .apex .terraform.d .pa
 
 # ── Default install (platforms extend this via additional install: lines)
 # .ssh/config lives at repo .ssh/config (not shell/.ssh); see $(HOME)/.ssh/config rule below.
-install: shell $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local
+install: shell $(HOME)/.ssh/config omz sheldon tpm nvm import_ssh_keys git-hide-local agents
 
 # ── Clean / Purge ────────────────────────────────────────────────────
 clean: $(LINKS_CLEAN) clean_link_.zshenv clean_link_.ssh/config \
@@ -50,6 +50,8 @@ purge: clean
         gitsetup git_gpg_update clean_link_.gitconfig.local \
         github-login github-login-gpg \
         gpg_setup gpg_setup_export upload_gpg_keys \
+        agents claude-code clean_claude-code codex-cli clean_codex-cli \
+        founder-repos founder-os clean_founder-os \
         clean_file_% clean_link_%
 
 # ── Debug ────────────────────────────────────────────────────────────
@@ -316,4 +318,74 @@ upload_gpg_keys: $(EXPORT_QNLBNSL) $(EXPORT_IMMERTEC)
 	gh gpg-key add $(EXPORT_IMMERTEC)
 	rm -f $(EXPORT_QNLBNSL) $(EXPORT_IMMERTEC)
 	$(MAKE) gitsetup
+
+# ── Agents ───────────────────────────────────────────────────────────
+# Founder OS ships as native plugins for Claude Code, Codex and Cursor -- not as
+# loose skill links. The marketplace stays GitHub-backed so that the native
+# marketplace-update path keeps working; $(FOUNDER_OS_DIR) is the checkout the
+# installer runs FROM, and Codex and Cursor load it directly. Claude therefore
+# runs the published version while Codex/Cursor run the working one. That drift
+# is deliberate: it is where changes are made before they are pushed. The cursor
+# lane is pure file wiring (a symlink plus ~/.cursor/hooks.json) and needs no
+# Cursor binary, so it is safe over remote ssh.
+PROJECTS_DIR     ?= $(HOME)/projects
+FOUNDER_OS_REPO  ?= git@github.com:qnlbnsl/founder-os.git
+FOUNDER_REPO     ?= git@github.com:qnlbnsl/founder.git
+FOUNDER_OS_MARKET?= qnlbnsl/founder-os
+FOUNDER_OS_DIR   := $(PROJECTS_DIR)/founder-os
+FOUNDER_DIR      := $(PROJECTS_DIR)/founder
+# Lanes handed to founder-os' own installer. hermes is deliberately absent; it
+# installs itself in isolation.
+FOUNDER_OS_LANES ?= claude codex cursor
+
+agents: claude-code codex-cli founder-os
+
+# Claude Code, native build. Never hand-link $(HOME)/.local/bin/claude here: the
+# installer owns that symlink, and a foreign one stops it pruning old versions.
+claude-code: $(HOME)/.local/bin/claude
+$(HOME)/.local/bin/claude:
+	curl -fsSL https://claude.ai/install.sh | bash
+clean_claude-code:
+	$(RM) $(HOME)/.local/bin/claude
+	$(RM) -r $(HOME)/.local/share/claude
+
+# Codex CLI, standalone build (no node runtime). Removes only the package cache;
+# auth.json and config.toml under ~/.codex are left alone.
+codex-cli: $(HOME)/.local/bin/codex
+$(HOME)/.local/bin/codex:
+	curl -fsSL https://chatgpt.com/codex/install.sh | sh
+clean_codex-cli:
+	$(RM) $(HOME)/.local/bin/codex
+	$(RM) -r $(HOME)/.codex/packages
+
+# Working checkouts. Cloned, never pulled: a rebase here is the owner's call.
+founder-repos: $(FOUNDER_OS_DIR)/.git $(FOUNDER_DIR)/.git
+$(FOUNDER_OS_DIR)/.git:
+	@mkdir -p $(PROJECTS_DIR)
+	git clone $(FOUNDER_OS_REPO) $(FOUNDER_OS_DIR)
+$(FOUNDER_DIR)/.git:
+	@mkdir -p $(PROJECTS_DIR)
+	git clone $(FOUNDER_REPO) $(FOUNDER_DIR)
+
+# Register the marketplace, then run founder-os' own installer for every lane.
+# The installer is idempotent, needs no sudo, and installs no MCP servers or
+# toolchains -- core's `provision` skill does that at first use.
+# Keyed on the install registry the installer itself writes, so a routine
+# `make install` is a no-op once set up. To re-run after changing founder-os,
+# call its installer directly or `make clean_founder-os agents`.
+founder-os: $(HOME)/.config/founder-os/install.json
+$(HOME)/.config/founder-os/install.json: export PATH := $(HOME)/.local/bin:$(PATH)
+$(HOME)/.config/founder-os/install.json: founder-repos claude-code codex-cli
+	@command -v python3 >/dev/null 2>&1 \
+		&& python3 -c 'import sys; sys.exit(sys.version_info < (3,11))' \
+		|| { echo "founder-os needs python3 3.11+ on PATH" >&2; exit 1; }
+	@claude plugin marketplace list --json 2>/dev/null | grep -q '"name": *"founder-os"' \
+		|| claude plugin marketplace add $(FOUNDER_OS_MARKET)
+	$(FOUNDER_OS_DIR)/scripts/install.sh $(FOUNDER_OS_LANES)
+# Unregisters and forgets the install; leaves both checkouts on disk.
+clean_founder-os: export PATH := $(HOME)/.local/bin:$(PATH)
+clean_founder-os:
+	-claude plugin marketplace remove founder-os
+	$(RM) -r $(HOME)/.config/founder-os
+	$(RM) $(HOME)/.cursor/plugins/local/founder-os-core
 
