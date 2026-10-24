@@ -56,7 +56,7 @@ Omarchy's stock bindings plus macOS equivalents:
 | Super+Shift+3 | screenshot of the whole screen (saved to ~/Pictures and copied) |
 | Super+Shift+4 | screenshot of a dragged area |
 
-These replace Omarchy's silent move-to-workspace 3/4 on Super+Shift; Super+Shift+Alt+3/4 still do that.
+These replace "move window to workspace 3/4" on Super+Shift; Super+Shift+Alt+3/4 still move a window there (without following it).
 
 ## Wispr Flow install (`make arch-wispr`)
 
