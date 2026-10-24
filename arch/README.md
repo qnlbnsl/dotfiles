@@ -57,7 +57,7 @@ restyled like macOS Mission Control:
 - Your wallpaper sits behind everything; pinned windows (like the Wispr pill) are skipped.
 
 Both backgrounds are set in `config.json` under `overview.workspaceBackground`
-(`color`, `gradientTo`, `borderColor`, `borderWidth`) and
+(`color`, `gradientTo`, `borderColor`, `borderWidth`, `bottomPadding`) and
 `overview.desktopBackground` (`color`, `gradientTo`). Colours are `#AARRGGBB`;
 set `gradientTo` for a top-to-bottom gradient.
 

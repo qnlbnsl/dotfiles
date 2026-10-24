@@ -48,7 +48,8 @@
       "color": "#59000000",
       "gradientTo": "",
       "borderColor": "#40FFFFFF",
-      "borderWidth": 1
+      "borderWidth": 1,
+      "bottomPadding": 20
     },
     "desktopBackground": {
       "color": "#00000000",

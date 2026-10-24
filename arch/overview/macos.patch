@@ -1,8 +1,8 @@
 diff --git c/common/Config.qml i/common/Config.qml
-index 621b39d..d09da10 100644
+index 621b39d..6293284 100644
 --- c/common/Config.qml
 +++ i/common/Config.qml
-@@ -123,6 +123,19 @@ Singleton {
+@@ -123,6 +123,20 @@ Singleton {
              property int specialWorkspaceColumns: root.readInt("overview.specialWorkspaceColumns", columns)
              property string emptyWorkspaceWallpaper: root.readString("overview.emptyWorkspaceWallpaper", "")
              property string specialEmptyWorkspaceWallpaper: root.readString("overview.specialEmptyWorkspaceWallpaper", "")
@@ -14,6 +14,7 @@ index 621b39d..d09da10 100644
 +                property string gradientTo: root.readString("overview.workspaceBackground.gradientTo", "")
 +                property string borderColor: root.readString("overview.workspaceBackground.borderColor", "#40FFFFFF")
 +                property int borderWidth: root.readInt("overview.workspaceBackground.borderWidth", 1)
++                property int bottomPadding: root.readInt("overview.workspaceBackground.bottomPadding", 20)
 +            }
 +            property QtObject desktopBackground: QtObject {
 +                property string color: root.readString("overview.desktopBackground.color", "#00000000")
@@ -253,7 +254,7 @@ index 0000000..44dc081
 +    }
 +}
 diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
-index 2fb08bb..f867169 100644
+index 2fb08bb..55f6816 100644
 --- c/modules/overview/Overview.qml
 +++ i/modules/overview/Overview.qml
 @@ -96,6 +96,21 @@ Scope {
@@ -282,15 +283,15 @@ index 2fb08bb..f867169 100644
                  }
              }
  
-+            // macOS: "workspace background", the band holding the desktop thumbnails. The gap below
-+            // the thumbnails matches the gap above them (which also holds the desktop labels).
++            // macOS: "workspace background", the band holding the desktop thumbnails. The desktop
++            // labels sit in the gap above the thumbnails, so the gap below is set on its own.
 +            Rectangle {
 +                id: workspaceBackground
 +                readonly property var cfg: Config.options.overview.workspaceBackground
 +                visible: GlobalStates.overviewOpen
 +                z: 0.5
 +                anchors { top: parent.top; left: parent.left; right: parent.right }
-+                height: columnLayout.y * 2 + columnLayout.height
++                height: columnLayout.y + columnLayout.height + cfg.bottomPadding
 +                color: cfg.color
 +                gradient: cfg.gradientTo.length > 0 ? workspaceGradient : null
 +                Gradient {
