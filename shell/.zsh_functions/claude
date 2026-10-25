@@ -1,0 +1,56 @@
+# Attach Claude Code to the Cursor/VSCode extension when running under tmux.
+#
+# Claude only auto-connects when it thinks it is in the IDE's integrated
+# terminal. tmux sets TERM_PROGRAM=tmux on every pane, so that check can never
+# pass here. CLAUDE_CODE_AUTO_CONNECT_IDE=true alone does NOT fix it -- measured
+# 2026-09-16: env var set, IDE slot free, interactive tty, zero connection
+# attempts. Pinning CLAUDE_CODE_SSE_PORT is what works: a lockfile whose port
+# matches is accepted without the terminal or workspace checks, and it is the
+# same variable Cursor's own integrated terminal injects.
+#
+# The port belongs to a Cursor WINDOW and changes on every reload (24695, 59648
+# and 31918 all seen in one day), so resolve it from the lockfile every time.
+# Never hardcode it.
+#
+# Note: the extension serves ONE client at a time -- a second connection makes
+# it log "Disconnecting previous WebSocket client" and drop the first. Sessions
+# do not share the IDE; the newest one wins.
+
+emulate -L zsh
+setopt local_options
+
+local port="" f p
+local -i have_ztcp=0
+
+if [[ -z $CLAUDE_CODE_SSE_PORT && -d $HOME/.claude/ide ]]; then
+  zmodload -i zsh/net/tcp 2>/dev/null && have_ztcp=1
+
+  # newest lockfile first; the filename is the port
+  for f in $HOME/.claude/ide/*.lock(N.om); do
+    p=${${f:t}:r}
+    [[ $p == <-> ]] || continue
+
+    # this window must actually hold the directory we are starting in
+    # bind the folder to $f first: piping into startswith() would rebind "."
+    # to $cwd and the prefix test would silently never match a subdirectory
+    jq -e --arg cwd "$PWD" '
+      [ (.workspaceFolders // [])[] as $f
+        | select($cwd == $f or ($cwd | startswith($f + "/"))) ] | length > 0
+    ' "$f" >/dev/null 2>&1 || continue
+
+    # a lockfile outlives its window; only trust a port still being listened on
+    if (( have_ztcp )); then
+      ztcp 127.0.0.1 $p 2>/dev/null || continue
+      ztcp -c $REPLY
+    fi
+
+    port=$p
+    break
+  done
+fi
+
+if [[ -n $port ]]; then
+  CLAUDE_CODE_SSE_PORT=$port command claude "$@"
+else
+  command claude "$@"
+fi

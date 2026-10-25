@@ -1,5 +1,6 @@
 # Load all functions from zsh_functions.
 # TODO: Convert the following into a looped function
+autoload -Uz claude
 autoload -Uz ec2connect
 autoload -Uz getgit
 autoload -Uz rl

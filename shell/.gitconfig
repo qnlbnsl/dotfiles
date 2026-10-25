@@ -31,12 +31,12 @@ ff = only
 tool = ediff
 
 # Always use ssh instead of http for go get.
-#[url "git@github.com:"]
-#insteadOf = https://github.com/
-#[url "git@bitbucket.org:"]
-#insteadOf = https://bitbucket.org/
-#[url "git@gitlab.com:"]
-#insteadOf = https://gitlab.com/
+# [url "git@github.com:"]
+# insteadOf = https://github.com/
+# [url "git@bitbucket.org:"]
+# insteadOf = https://bitbucket.org/
+# [url "git@gitlab.com:"]
+# insteadOf = https://gitlab.com/
 
 [include]
 path = ~/.gitconfig.local
