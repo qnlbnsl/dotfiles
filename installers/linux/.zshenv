@@ -17,6 +17,7 @@ typeset -U PATH path
 [ -d "$HOME/.yarn/bin" ]     && path=("$HOME/.yarn/bin" $path)
 [ -d "$HOME/.local/bin" ]    && path=("$HOME/.local/bin" $path)
 [ -d "$HOME/.cargo/bin" ]    && export CARGO_HOME="$HOME/.cargo" && path=("$CARGO_HOME/bin" $path)
+[ -d "$HOME/go/bin" ]        && export GOBIN="$HOME/go/bin" && path=($GOBIN $path)
 [ -d /usr/local/bin ]        && path=(/usr/local/bin /usr/local/sbin $path)
 
 export PATH

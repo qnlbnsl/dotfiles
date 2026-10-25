@@ -21,6 +21,7 @@ typeset -U PATH path
 [ -d "$HOME/.yarn/bin" ]                               && path=("$HOME/.yarn/bin" $path)
 [ -d "$HOME/.local/bin" ]                              && path=("$HOME/.local/bin" $path)
 [ -d "$HOME/.cargo/bin" ]                              && export CARGO_HOME="$HOME/.cargo" && path=("$CARGO_HOME/bin" $path)
+[ -d "$HOME/go/bin" ]                                  && export GOBIN="$HOME/go/bin" && path=($GOBIN $path)
 [ -d /opt/homebrew/opt/coreutils/libexec/gnubin ]      && export GNUBIN=/opt/homebrew/opt/coreutils/libexec/gnubin && path=($GNUBIN $path)
 [ -d "$HOMEBREW_PREFIX/bin" ]                          && path=("$HOMEBREW_PREFIX/bin" "$HOMEBREW_PREFIX/sbin" $path)
 [ -d "$HOME/.antigravity/antigravity/bin" ]            && path=("$HOME/.antigravity/antigravity/bin" $path)
