@@ -37,3 +37,6 @@ bindkey "^[[1;3C" forward-word
 
 # Set M-l as lowercase word.
 bindkey "^[l" down-case-word
+
+# nvm default node on PATH for every zsh, including non-interactive ones.
+[ -r "$HOME/.dotfiles/shell/.node-path.sh" ] && . "$HOME/.dotfiles/shell/.node-path.sh"

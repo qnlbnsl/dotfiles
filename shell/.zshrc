@@ -2,8 +2,18 @@
 # ZPROF=1
 [ -n "${ZPROF}" ] && zmodload zsh/zprof
 
+# Agent shells: Claude Code (CLAUDECODE), Codex (CODEX_THREAD_ID), Cursor's
+# agent (CURSOR_AGENT). They keep aliases, functions and PATH but skip the
+# prompt theme and the interactive-only sheldon plugins (alias-tips prints
+# into command output; autosuggestions and highlighting do nothing for them).
+if [[ -n "${CLAUDECODE:-}${CODEX_THREAD_ID:-}${CURSOR_AGENT:-}" ]]; then
+  _agent_shell=1
+else
+  _agent_shell=
+fi
+
 # Enable Powerlevel10k instant prompt (must be near the top)
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+if [[ -z $_agent_shell && -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
@@ -25,7 +35,11 @@ setopt share_history
 # Save each command in history to make sure we don't loose it.
 setopt inc_append_history
 
-ZSH_THEME="powerlevel10k/powerlevel10k"
+if [[ -z $_agent_shell ]]; then
+  ZSH_THEME="powerlevel10k/powerlevel10k"
+else
+  ZSH_THEME=""
+fi
 CASE_SENSITIVE="true"
 
 # Detect SSH session and set SSH agent-forwarding accordingly
@@ -69,9 +83,12 @@ if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
 fi
 
 # To customize prompt, run `p10k configure` or edit ${HOME}/.p10k.zsh.
-[[ ! -f ${HOME}/.p10k.zsh ]] || source ${HOME}/.p10k.zsh
-# load plugins here. Ideally this should not produce console output.
-eval "$(sheldon source)"
+# Theme and sheldon plugins are for people only (see _agent_shell above).
+if [[ -z $_agent_shell ]]; then
+  [[ ! -f ${HOME}/.p10k.zsh ]] || source ${HOME}/.p10k.zsh
+  # load plugins here. Ideally this should not produce console output.
+  eval "$(sheldon source)"
+fi
 
 # Lazy load AWS plugin
 _load_aws() {
