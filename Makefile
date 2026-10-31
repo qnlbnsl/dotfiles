@@ -9,7 +9,9 @@
 #   make cargo          Install Rust/Cargo
 #   make docker         Install Docker (Linux only)
 #   make github         Install GitHub CLI
+#   make github-setup   Log in to GitHub, create + upload SSH/GPG keys, verify (dialog)
 #   make gpg_setup      Generate GPG keys
+#   make upload_gpg_keys Upload GPG keys to GitHub (needs make github-login-gpg)
 #   make gitsetup       Render git profiles from templates + link ~/.gitconfig.local
 #   make git-hide-local skip-worktree on .ssh/config (local edits stay private)
 #   make clean          Remove installed components

@@ -48,7 +48,7 @@ purge: clean
         terraform clean_terraform cargo clean_.cargo \
         import_ssh_keys import_ssh_keys_service \
         gitsetup git_gpg_update clean_link_.gitconfig.local \
-        github-login github-login-gpg \
+        github-login github-login-gpg github-setup \
         gpg_setup gpg_setup_export upload_gpg_keys \
         agents claude-code clean_claude-code codex-cli clean_codex-cli \
         founder-repos founder-os clean_founder-os \
@@ -263,6 +263,12 @@ github-login: github
 github-login-gpg: github
 	@gh auth login -s write:gpg_key
 
+# Interactive (dialog): gh login, SSH key, GPG keys, git profiles, then verify.
+# A no-op once gh is logged in and SSH to GitHub authenticates.
+GITHUB_SETUP := $(GPG_TEMPLATES_DIR)/github-setup.sh
+github-setup: github
+	@bash $(GITHUB_SETUP)
+
 # Git profiles from templates. GPG is optional:
 #   keys present  -> gpgsign on + signingKey
 #   keys missing  -> gpgsign off, still link identity
@@ -338,7 +344,15 @@ FOUNDER_DIR      := $(PROJECTS_DIR)/founder
 # installs itself in isolation.
 FOUNDER_OS_LANES ?= claude codex cursor
 
-agents: claude-code codex-cli founder-os
+# founder-os clones over SSH, so it runs only once GitHub is set up. Skipping
+# or failing the setup skips founder-os without failing the install.
+agents: claude-code codex-cli
+	-@$(MAKE) --no-print-directory github-setup
+	@if bash $(GITHUB_SETUP) --check; then \
+		$(MAKE) --no-print-directory founder-os; \
+	else \
+		echo "skipping founder-os: GitHub isn't set up (run 'make github-setup', then 'make founder-os')"; \
+	fi
 
 # Claude Code, native build. Never hand-link $(HOME)/.local/bin/claude here: the
 # installer owns that symlink, and a foreign one stops it pruning old versions.

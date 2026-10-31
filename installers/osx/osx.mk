@@ -3,7 +3,7 @@
 
 ZSHENV_SRC = $(INSTALLER_DIR)/osx/.zshenv
 
-BREW_PACKAGES := coreutils grep gnupg gh python3 asitop most tmux mosh yq
+BREW_PACKAGES := coreutils grep gnupg gh python3 asitop most tmux mosh yq dialog
 
 # ── Extend default install with macOS targets ────────────────────────
 install: brew-packages cargo

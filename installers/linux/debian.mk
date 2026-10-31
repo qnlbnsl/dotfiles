@@ -4,7 +4,7 @@
 ZSHENV_SRC = $(INSTALLER_DIR)/linux/.zshenv
 
 APT_PACKAGES := zsh git curl make gcc build-essential tmux mosh unzip gzip \
-                htop python3 python3-pip rsync git-lfs jq gnupg most ssh-import-id
+                htop python3 python3-pip rsync git-lfs jq gnupg most ssh-import-id dialog
 
 # ── Extend default install with Debian targets ──────────────────────
 install: apt-packages
