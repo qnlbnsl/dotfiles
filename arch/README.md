@@ -6,7 +6,9 @@ so an Omarchy update, `omarchy refresh`, or a reinstall can't lose it.
 
 ```sh
 make arch-config   # link ~/.config files + set up the overview (also runs with `make` on Hyprland machines)
-make arch-system   # install /etc and /usr/lib files with sudo (keyd, uinput, udev)
+make arch-packages # keyd + macOS-look packages (inter-font, AUR whitesur-icon-theme, apple_cursor)
+make arch-system   # install keyd + /etc and /usr/lib files with sudo, load uinput, enable keyd (also runs with `make` on Hyprland machines)
+make arch-theme    # install the macOS-look packages and apply macos-graphite (also runs with `make` on Hyprland machines)
 make arch-wispr    # build + install the newest Wispr Flow (also runs with `make` on Hyprland machines)
 ```
 
@@ -88,7 +90,7 @@ The AUR package only follows wispr-flow-linux releases, which lag Wispr's own.
   `PINNED=1` builds the pin directly.
 - Does nothing when that version is already installed; `FORCE=1` rebuilds.
 - Stops a running Wispr Flow before installing and starts it again afterwards.
-- Run `make arch-system` once on a new machine for the uinput/udev/keyd setup.
+- `make arch-system` (part of `make install` on Hyprland machines) does the uinput/udev/keyd setup.
 
 ## Wispr Flow push-to-talk
 
@@ -141,7 +143,7 @@ colored window border, white keyboard backlight, and an original graphite wallpa
 curve), a soft downward shadow, blur behind translucent surfaces, 1px borders, and gaps about 20% tighter than stock (4 / 8).
 
 Fonts, icons, cursor (packages: `inter-font`, AUR `whitesur-icon-theme`, `apple_cursor`;
-install with `omarchy pkg add inter-font && omarchy pkg aur add whitesur-icon-theme apple_cursor`):
+installed by `make arch-packages`, which `make install` runs on Hyprland machines):
 - Inter for GTK UI text and Mission Control labels (the bar stays on the monospace
   Nerd Font: Omarchy's shell hard-wires it and draws its icons from it).
 - WhiteSur-dark icons via the theme's `icons.theme`.

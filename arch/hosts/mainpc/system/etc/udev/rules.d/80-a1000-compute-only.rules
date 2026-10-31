@@ -1,0 +1,6 @@
+# RTX A1000 (0000:0d:00.0) is shared between the host (CUDA / AI via /dev/nvidia*) and the
+# Windows VM (arch/vm), which takes it only while running. Keep the desktop off its DRM
+# nodes: without the seat/uaccess tags logind doesn't hand the card to Hyprland, and
+# root-only render nodes stop apps (Chrome, Electron, Vulkan) from opening it. Otherwise
+# those open handles keep the nvidia driver from releasing the GPU to vfio-pci.
+SUBSYSTEM=="drm", KERNEL=="card*|renderD*", KERNELS=="0000:0d:00.0", TAG-="seat", TAG-="master-of-seat", TAG-="uaccess", MODE="0600", GROUP="root"

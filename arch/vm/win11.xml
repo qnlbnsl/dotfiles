@@ -1,0 +1,189 @@
+<!--
+  Windows 11 for Looking Glass on mainpc (Ryzen 9 5950X, RTX 3090 host + RTX A1000 guest).
+  Defined by arch/vm/setup.sh (`make arch-vm`); edit here, then re-run it.
+
+  Passthrough:  RTX A1000 0d:00.0/.1 (host GPU for CUDA; libvirt detaches it from nvidia on
+                start and gives it back on shutdown, see hooks/qemu.d/a1000-guard)
+                NVMe Sabrent/Phison E12 01:00.0 (whole controller; libvirt detaches it on start)
+                Logitech BRIO 046d:085e (camera; the host loses it while the VM runs)
+  Audio + mic:  SPICE audio, played/recorded by the Looking Glass client on the host.
+  Input:        SPICE via the Looking Glass client.
+  CPU:          the second CCD (cores 8-15 = host CPUs 8-15 + 24-31); emulator on CCD 1.
+-->
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>win11</name>
+  <memory unit="GiB">32</memory>
+  <currentMemory unit="GiB">32</currentMemory>
+  <memoryBacking>
+    <source type="memfd"/>
+    <access mode="shared"/>
+  </memoryBacking>
+  <vcpu placement="static">16</vcpu>
+  <cputune>
+    <vcpupin vcpu="0" cpuset="8"/>
+    <vcpupin vcpu="1" cpuset="24"/>
+    <vcpupin vcpu="2" cpuset="9"/>
+    <vcpupin vcpu="3" cpuset="25"/>
+    <vcpupin vcpu="4" cpuset="10"/>
+    <vcpupin vcpu="5" cpuset="26"/>
+    <vcpupin vcpu="6" cpuset="11"/>
+    <vcpupin vcpu="7" cpuset="27"/>
+    <vcpupin vcpu="8" cpuset="12"/>
+    <vcpupin vcpu="9" cpuset="28"/>
+    <vcpupin vcpu="10" cpuset="13"/>
+    <vcpupin vcpu="11" cpuset="29"/>
+    <vcpupin vcpu="12" cpuset="14"/>
+    <vcpupin vcpu="13" cpuset="30"/>
+    <vcpupin vcpu="14" cpuset="15"/>
+    <vcpupin vcpu="15" cpuset="31"/>
+    <emulatorpin cpuset="0-1,16-17"/>
+  </cputune>
+  <os firmware="efi">
+    <type arch="x86_64" machine="q35">hvm</type>
+    <!-- Arch's edk2-ovmf secure-boot build ships its vars template without Microsoft keys
+         (no "enrolled-keys" descriptor), so only ask for secure-boot; Windows 11 needs a
+         Secure Boot-capable UEFI + TPM, not pre-enrolled keys. -->
+    <firmware>
+      <feature enabled="yes" name="secure-boot"/>
+    </firmware>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <hyperv mode="custom">
+      <relaxed state="on"/>
+      <vapic state="on"/>
+      <spinlocks state="on" retries="8191"/>
+      <vpindex state="on"/>
+      <runtime state="on"/>
+      <synic state="on"/>
+      <stimer state="on"/>
+      <reset state="on"/>
+      <frequencies state="on"/>
+      <tlbflush state="on"/>
+      <ipi state="on"/>
+    </hyperv>
+    <smm state="on"/>
+    <ioapic driver="kvm"/>
+  </features>
+  <cpu mode="host-passthrough" check="none" migratable="off">
+    <topology sockets="1" dies="1" clusters="1" cores="8" threads="2"/>
+    <cache mode="passthrough"/>
+    <feature policy="require" name="topoext"/>
+  </cpu>
+  <clock offset="localtime">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+    <timer name="hypervclock" present="yes"/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <pm>
+    <suspend-to-mem enabled="no"/>
+    <suspend-to-disk enabled="no"/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+
+    <!-- Installer media; remove both once Windows and the virtio drivers are in. -->
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <source file="/var/lib/libvirt/images/win11.iso"/>
+      <target dev="sda" bus="sata"/>
+      <readonly/>
+      <boot order="1"/>
+    </disk>
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <source file="/var/lib/libvirt/images/virtio-win.iso"/>
+      <target dev="sdb" bus="sata"/>
+      <readonly/>
+    </disk>
+
+    <!-- Whole NVMe controller: Windows installs to it like bare metal. -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x01" slot="0x00" function="0x0"/>
+      </source>
+      <boot order="2"/>
+    </hostdev>
+
+    <!-- RTX A1000: GPU + its HDMI audio as one multifunction device, like on real hardware. -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x0d" slot="0x00" function="0x0"/>
+      </source>
+      <address type="pci" domain="0x0000" bus="0x06" slot="0x00" function="0x0" multifunction="on"/>
+    </hostdev>
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x0d" slot="0x00" function="0x1"/>
+      </source>
+      <address type="pci" domain="0x0000" bus="0x06" slot="0x00" function="0x1"/>
+    </hostdev>
+
+    <!-- Logitech BRIO webcam for Teams. -->
+    <hostdev mode="subsystem" type="usb" managed="yes">
+      <source startupPolicy="optional">
+        <vendor id="0x046d"/>
+        <product id="0x085e"/>
+      </source>
+    </hostdev>
+
+    <controller type="usb" model="qemu-xhci" ports="15"/>
+    <controller type="sata" index="0"/>
+    <controller type="pci" model="pcie-root"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+
+    <!-- virtio-net: Windows needs the driver from virtio-win.iso (NetKVM) before it has network. -->
+    <interface type="network">
+      <source network="default"/>
+      <model type="virtio"/>
+    </interface>
+
+    <!-- Looking Glass: SPICE carries keyboard/mouse, clipboard and audio (both directions). -->
+    <input type="mouse" bus="virtio"/>
+    <input type="keyboard" bus="virtio"/>
+    <input type="mouse" bus="ps2"/>
+    <input type="keyboard" bus="ps2"/>
+    <graphics type="spice" autoport="yes">
+      <listen type="none"/>
+      <image compression="off"/>
+      <gl enable="no"/>
+    </graphics>
+    <channel type="spicevmc">
+      <target type="virtio" name="com.redhat.spice.0"/>
+    </channel>
+    <sound model="ich9">
+      <audio id="1"/>
+    </sound>
+    <audio id="1" type="spice"/>
+    <!-- Emulated display for the install, viewed with virt-manager. Once the Looking Glass
+         host app works, change model to type="none" so Windows only drives the A1000. -->
+    <video>
+      <model type="vga"/>
+    </video>
+
+    <tpm model="tpm-crb">
+      <backend type="emulator" version="2.0"/>
+    </tpm>
+    <memballoon model="none"/>
+  </devices>
+
+  <!-- Looking Glass shared framebuffer via the kvmfr module (64 MiB, see modprobe.d/kvmfr.conf). -->
+  <qemu:commandline>
+    <qemu:arg value="-device"/>
+    <qemu:arg value="{&quot;driver&quot;:&quot;ivshmem-plain&quot;,&quot;id&quot;:&quot;shmem0&quot;,&quot;memdev&quot;:&quot;looking-glass&quot;}"/>
+    <qemu:arg value="-object"/>
+    <qemu:arg value="{&quot;qom-type&quot;:&quot;memory-backend-file&quot;,&quot;id&quot;:&quot;looking-glass&quot;,&quot;mem-path&quot;:&quot;/dev/kvmfr0&quot;,&quot;size&quot;:67108864,&quot;share&quot;:true}"/>
+  </qemu:commandline>
+</domain>

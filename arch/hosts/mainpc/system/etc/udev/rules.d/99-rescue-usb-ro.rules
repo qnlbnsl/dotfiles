@@ -1,0 +1,4 @@
+# Omarchy rescue USB ("Disk 3.0", serial 4063303653979727): read-only on this machine so a
+# stray dd/wipefs can't destroy it. To reflash it: sudo blockdev --setrw /dev/sdX (and its
+# partitions), flash, then replug (the rule applies again).
+ACTION=="add|change", SUBSYSTEM=="block", ENV{ID_SERIAL_SHORT}=="4063303653979727", RUN+="/usr/bin/blockdev --setro /dev/%k"

@@ -10,12 +10,44 @@ OVERVIEW_PATCH  := $(ARCH_CFG_DIR)/overview/macos.patch
 OVERVIEW_URL    := $(shell sed -n 's/^url=//p' $(ARCH_CFG_DIR)/overview/UPSTREAM)
 OVERVIEW_COMMIT := $(shell sed -n 's/^commit=//p' $(ARCH_CFG_DIR)/overview/UPSTREAM)
 
+# keyd backs the Wispr Flow setup in arch-system; the rest is the macOS look
+# (Inter UI font, WhiteSur icons, macOS cursor), see README "macOS look".
+ARCH_PACKAGES     := keyd inter-font
+ARCH_AUR_PACKAGES := whitesur-icon-theme apple_cursor
+ARCH_THEME        := macos-graphite
+AUR_ADD           := $(if $(OMARCHY),omarchy-pkg-aur-add,yay -S --noconfirm --needed --)
+
 # Only desktops get this as part of the default install.
 ifneq (,$(wildcard /usr/bin/Hyprland))
-install: arch-config arch-wispr
+install: arch-config arch-wispr arch-system arch-theme
 endif
 
-.PHONY: arch-config arch-links arch-overview arch-overview-save arch-system arch-wispr
+.PHONY: arch-config arch-links arch-overview arch-overview-save arch-packages \
+        arch-secureboot arch-system arch-theme arch-vm arch-wispr
+
+# Secure Boot (own keys + Microsoft's) and TPM2 auto-unlock of the LUKS root. Run
+# repeatedly; each run does the next step. Not part of `make install`. See
+# arch/secureboot/setup.sh.
+arch-secureboot:
+	@bash "$(ARCH_CFG_DIR)/secureboot/setup.sh"
+
+# Windows 11 VM with the RTX A1000 passed through, viewed with Looking Glass
+# (mainpc only, not part of `make install`). See arch/vm/setup.sh.
+arch-vm: arch-system arch-links
+	@bash "$(ARCH_CFG_DIR)/vm/setup.sh"
+
+arch-packages:
+	@$(PKG_ADD) $(ARCH_PACKAGES) || { $(STALE_DB_HINT); }
+	@$(AUR_ADD) $(ARCH_AUR_PACKAGES)
+
+# Apply the macOS theme unless it's already the current one. Packages first: the
+# theme's icons.theme and the theme-set hook (font, cursor) need them installed.
+arch-theme: arch-packages arch-links
+	@if [ "$$(cat $(HOME)/.local/state/omarchy/current/theme.name 2>/dev/null)" = "$(ARCH_THEME)" ]; then \
+		echo "theme $(ARCH_THEME) already set"; \
+	else \
+		omarchy theme set $(ARCH_THEME); \
+	fi
 
 arch-config: arch-overview arch-links
 	@hyprctl reload >/dev/null 2>&1 && hyprctl configerrors || true
@@ -58,18 +90,24 @@ arch-overview-save:
 	@echo "saved overview changes to arch/overview/macos.patch"
 
 # Root-owned daemons (keyd, udev) read these, so they are copied rather than linked.
-arch-system:
+arch-system: arch-packages
 	@for root in "$(ARCH_CFG_DIR)/system" "$(ARCH_HOST_DIR)/system"; do \
 		[ -d "$$root" ] || continue; \
 		(cd "$$root" && find . -type f) | while read -r f; do \
-			f="$${f#./}"; sudo install -Dm644 "$$root/$$f" "/$$f" && echo "installed /$$f"; \
+			f="$${f#./}"; mode=644; [ -x "$$root/$$f" ] && mode=755; \
+			sudo install -Dm$$mode "$$root/$$f" "/$$f" && echo "installed /$$f"; \
 		done; \
 	done
 	sudo udevadm control --reload
+	@# modules-load.d only applies at boot; load uinput now and re-run its udev rule.
+	sudo modprobe uinput
+	sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
 	@if systemctl is-active -q keyd; then \
 		sudo systemctl restart keyd; \
-		echo "keyd restarted: restart Wispr Flow too, or its helper stops hearing keys."; \
+	else \
+		sudo systemctl enable --now keyd; \
 	fi
+	@echo "keyd (re)started: restart Wispr Flow too (pkill -x wispr-flow), or its helper stops hearing keys."
 
 # Build Wispr Flow from the newest Wispr installer and install it as a package
 # (falls back to wispr-flow-linux's pinned version if the newest doesn't build).
