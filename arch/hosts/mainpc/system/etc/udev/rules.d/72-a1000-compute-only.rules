@@ -1,0 +1,14 @@
+# RTX A1000 (0000:0d:00.0) is shared between the host (CUDA / AI via /dev/nvidia*) and the
+# Windows VM (arch/vm), which takes it only while running. Keep the desktop off its DRM
+# nodes: without the seat/uaccess tags logind doesn't hand the card to Hyprland, and
+# root-only nodes stop apps (Chrome, Electron, Vulkan) from opening it. Otherwise those
+# open handles keep the nvidia driver from releasing the GPU to vfio-pci.
+#
+# Numbered 72: after 70-uaccess / 71-seat add the tags, before 73-seat-late queues the
+# uaccess ACL for anything still tagged. := so no later rule can loosen the mode.
+SUBSYSTEM=="drm", KERNEL=="card*|renderD*", KERNELS=="0000:0d:00.0", TAG-="seat", TAG-="master-of-seat", TAG-="uaccess", MODE:="0600", GROUP:="root"
+
+# logind still hands Hyprland any DRM card it asks for, so Hyprland is also told to use
+# only the RTX 3090 (AQ_DRM_DEVICES in ~/.config/uwsm/env-hyprland). That list is
+# colon-separated, so give the 3090 a colon-free name (by-path names contain colons).
+SUBSYSTEM=="drm", KERNEL=="card*", KERNELS=="0000:0c:00.0", SYMLINK+="dri/rtx3090"

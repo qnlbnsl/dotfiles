@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Make the RTX A1000's /dev/nvidiaN usable only by root and the gpu-a1000 group.
+#
+# NVIDIA's EGL/Vulkan libraries open every GPU's /dev/nvidiaN, so without this the
+# desktop (Hyprland, Xwayland, every Electron app) holds the A1000 open and the
+# driver can never release it to the Windows VM (arch/vm). CUDA/AI work reaches it
+# through the group: services join gpu-a1000, shells use `a1000 <cmd>`, Docker is root.
+# The minor number can change between boots, so it is looked up each time.
+# Run at boot (a1000-restrict.service) and when the VM hands the GPU back.
+set -eu
+
+GPU=0000:0d:00.0
+info=/proc/driver/nvidia/gpus/$GPU/information
+[ -r "$info" ] || exit 0 # not on nvidia right now (e.g. the VM has it)
+
+minor=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' "$info")
+dev=/dev/nvidia$minor
+[ -c "$dev" ] || /usr/bin/nvidia-modprobe -c "$minor"
+chgrp gpu-a1000 "$dev"
+chmod 0660 "$dev"
+echo "restricted $dev (RTX A1000) to root:gpu-a1000"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run a command with access to the RTX A1000: `a1000 python train.py`, `a1000 nvidia-smi`.
+# Adds the gpu-a1000 group for this command only (sudoers: /etc/sudoers.d/a1000, runs as
+# you, no password). Desktop apps stay off the card so the Windows VM can take it.
+[ $# -gt 0 ] || { echo "usage: a1000 <command> [args...]" >&2; exit 2; }
+exec sudo --preserve-env -u "$USER" -g gpu-a1000 -- "$@"

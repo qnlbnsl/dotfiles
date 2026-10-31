@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep desktop apps off the RTX A1000 (gpu-a1000 group only)
+# Before anyone can log in, so the session never opens the card.
+After=systemd-udevd.service systemd-modules-load.service systemd-sysusers.service
+Before=systemd-user-sessions.service
+ConditionPathExists=/proc/driver/nvidia/gpus/0000:0d:00.0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/a1000-restrict
+
+[Install]
+WantedBy=multi-user.target

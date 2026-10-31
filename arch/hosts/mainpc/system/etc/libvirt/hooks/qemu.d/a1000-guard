@@ -2,19 +2,44 @@
 # libvirt qemu hook (called as: <domain> <operation> <sub-operation>).
 # win11 takes the RTX A1000 from the host only while it runs: libvirt detaches it from
 # nvidia (managed="yes" in arch/vm/win11.xml) on start and gives it back on shutdown.
-# The nvidia driver can't release a GPU something still has open, so refuse to start
-# the VM while any process uses the A1000, and say which.
-[[ $1 == win11 && $2 == prepare && $3 == begin ]] || exit 0
-
+#  - prepare/begin: the nvidia driver can't release a GPU something still has open
+#    (it waits forever), so make sure nothing does before libvirt detaches it:
+#      * Hyprland opens a GPU that appears while it runs (the A1000 coming back after
+#        the VM stops), ignoring AQ_DRM_DEVICES. Announce the A1000's DRM nodes as
+#        removed (a synthetic udev "remove"; nothing is unplugged): Hyprland drops that
+#        GPU and closes it, and logind releases its copy.
+#      * Anything else (CUDA jobs on /dev/nvidiaN) is real work: refuse and name it.
+#  - release/end: the GPU is back on nvidia; keep desktop apps off it again.
+[[ $1 == win11 ]] || exit 0
 GPU=0000:0d:00.0
+
+if [[ $2 == release && $3 == end ]]; then
+  /usr/local/bin/a1000-restrict || true
+  exit 0
+fi
+[[ $2 == prepare && $3 == begin ]] || exit 0
 [[ $(basename "$(readlink -f /sys/bus/pci/devices/$GPU/driver)") == nvidia ]] || exit 0
 
 minor=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' /proc/driver/nvidia/gpus/$GPU/information)
-pids=$(fuser "/dev/nvidia$minor" /dev/dri/by-path/pci-$GPU-card /dev/dri/by-path/pci-$GPU-render 2>/dev/null)
-users=""
-for pid in $(tr -cs '0-9' ' ' <<<"$pids"); do
-  users+="$(cat /proc/$pid/comm 2>/dev/null)($pid) "
+# DRM nodes from sysfs: the by-path symlinks go away with the synthetic remove.
+drm=()
+for d in /sys/bus/pci/devices/$GPU/drm/card* /sys/bus/pci/devices/$GPU/drm/renderD*; do
+  [[ -e $d ]] && drm+=("/dev/dri/${d##*/}")
 done
+
+holders() { fuser "$@" 2>/dev/null | tr -cs '0-9' ' '; }
+names() { for pid in $1; do printf '%s(%s) ' "$(cat /proc/$pid/comm 2>/dev/null)" "$pid"; done; }
+
+if ((${#drm[@]})) && [[ -n $(holders "${drm[@]}") ]]; then
+  echo "a1000-guard: $(names "$(holders "${drm[@]}")")has the A1000's display device open; ejecting it" >&2
+  for d in /sys/bus/pci/devices/$GPU/drm/card*; do echo remove >"$d/uevent"; done
+  for _ in $(seq 50); do
+    [[ -z $(holders "${drm[@]}") ]] && break
+    sleep 0.1
+  done
+fi
+
+users=$(names "$(holders "/dev/nvidia$minor" "${drm[@]}")")
 if [[ -n $users ]]; then
   echo "RTX A1000 is in use on the host by: $users- stop those before starting win11." >&2
   exit 1

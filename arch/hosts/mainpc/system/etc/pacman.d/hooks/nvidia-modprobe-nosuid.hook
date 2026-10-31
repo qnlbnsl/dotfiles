@@ -1,0 +1,15 @@
+# nvidia-modprobe ships setuid root. When a user process can't open a GPU's /dev/nvidiaN,
+# NVIDIA's libraries run it, and it recreates the file with the driver's default 0666,
+# undoing a1000-restrict (the RTX A1000 is kept off the desktop for the Windows VM).
+# Here the driver is loaded at boot as root (initramfs + udev), which already creates
+# every device file and loads nvidia-uvm, so the setuid bit isn't needed.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = nvidia-utils
+
+[Action]
+Description = Dropping setuid from nvidia-modprobe (keeps the RTX A1000 restriction)...
+When = PostTransaction
+Exec = /usr/bin/chmod u-s /usr/bin/nvidia-modprobe

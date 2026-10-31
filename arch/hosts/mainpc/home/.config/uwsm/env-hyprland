@@ -1,0 +1,8 @@
+# Read by uwsm before it starts Hyprland.
+# Drive only the RTX 3090 (both monitors are on it). Otherwise Hyprland opens the
+# RTX A1000 too, and that open handle stops the GPU from moving to the Windows VM.
+# /dev/dri/rtx3090 comes from /etc/udev/rules.d/72-a1000-compute-only.rules; without it
+# (rule not installed yet) Hyprland keeps its default of every GPU instead of a black screen.
+if [ -e /dev/dri/rtx3090 ]; then
+  export AQ_DRM_DEVICES=/dev/dri/rtx3090
+fi

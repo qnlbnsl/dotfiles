@@ -1,0 +1,5 @@
+# Installed as /etc/sudoers.d/a1000 by arch/vm/setup.sh (validated with visudo).
+# Lets `a1000 <cmd>` run a command as yourself with the gpu-a1000 group added, so it
+# can use the RTX A1000. Runas is pinned to the same user: it grants nothing beyond
+# that group.
+qnlbnsl ALL=(qnlbnsl : gpu-a1000) NOPASSWD:SETENV: ALL
