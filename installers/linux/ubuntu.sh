@@ -6,20 +6,20 @@ user=$(whoami)
 
 # Install sudo if needed
 if ! hash sudo 2>/dev/null; then
-  apt-get update
-  apt-get install -y sudo
+  apt-get-get update
+  apt-get-get install -y sudo
 fi
-type -p curl >/dev/null || sudo apt-get install curl -y
-type -p git >/dev/null || sudo apt-get install git -y
+type -p curl >/dev/null || sudo apt-get-get install curl -y
+type -p git >/dev/null || sudo apt-get-get install git -y
 
 # Proxmox Specific
-if [ -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+if [ -f /etc/apt-get/sources.list.d/pve-enterprise.list ]; then
   echo "We are using Proxmox"
   # Sync time
   sudo hwclock --hctosys
   proxmox=true
   # Remove enterprise repo from proxmox
-  echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt/sources.list.d/pve-enterprise.list"
+  echo "deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription" | sudo tee "/etc/apt-get/sources.list.d/pve-enterprise.list"
   # Remove the no subscription notice
   sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
 fi
@@ -30,7 +30,7 @@ setup_qemu_agent() {
   select answer in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
-      sudo apt-get install qemu-guest-agent
+      sudo apt-get-get install qemu-guest-agent
       break
       ;;
     [nN][oO] | [nN])
@@ -82,23 +82,13 @@ setup_locales() {
     "' dpkg-reconfigure -f editor locales
 }
 setup_keyrings() {
-  # Nala.
-  echo "deb [arch=amd64,arm64,armhf] http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
-  wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
+  wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt-get/trusted.gpg.d/volian-archive-scar-unstable.gpg >/dev/null
   # Github.
   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
   sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt-get/sources.list.d/github-cli.list >/dev/null
 }
-setup_nala() {
-  sudo apt-get update
-  if sudo apt-get --simulate install nala; then
-    sudo apt-get install nala -y
-  else
-    sudo apt-get install nala-legacy -y
-  fi
-  printf '1 2 3' | sudo nala fetch -y
-}
+
 nvm_setup() {
   source "${HOME}/.nvm/nvm.sh"
   nvm install 14
@@ -197,14 +187,7 @@ golang_setup() {
     esac
   done
 }
-# android_setup() {
-#   mkdir ~/tools
-#   mkdir ~/tools/android
-#   mkdir ~/tools/android/android-sdk
-#   cp -r cmdline-tools ~/tools/android/android-sdk
-#   # sdkmanager "platform-tools" "platforms;android-29"
-#   # sdkmanager "build-tools;32.0.0"
-# }
+
 update_fs() {
   # Helps in general... Especially when coding in react
   # Increasing max watchers to 65535
@@ -215,13 +198,13 @@ update_fs() {
   echo $maxfiles | sudo tee -a /etc/sysctl.conf
   echo $maxwatches | sudo tee -a /etc/sysctl.conf
 }
-# Pulls keyrings for github cli and nala.
+
+# Pulls keyrings for github cli.
 # TODO: remove curl dependency
 setup_keyrings
 
-type -p nala >/dev/null || setup_nala
-sudo nala update
-sudo nala install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
+
+sudo apt-get install -y make gcc tmux mosh zsh unzip gzip ssh-import-id build-essential
 make install
 # Import my SSH keys
 ssh-import-id-gh qnlbnsl
@@ -235,7 +218,7 @@ else
   setup_user
   # Some CTs/LXCs have an issue where the locales are not set. This generates en-US.UTF-8.
   setup_locales
-  sudo nala install -y watch htop unzip python3-pip rsync git-lfs jq gh
+  sudo apt-get install -y watch htop unzip python3-pip rsync git-lfs jq gh
   # Install Tailscale
   type -p tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sudo sh
 
@@ -252,4 +235,4 @@ else
 fi
 sudo chsh -s /usr/bin/zsh "$(whoami)"
 # last but not least we shall upgrade everything else.
-sudo nala upgrade -y
+sudo apt-get upgrade -y

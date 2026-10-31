@@ -2,7 +2,7 @@
 docker_setup() {
   options=(Yes No)
   echo "Would you like to install docker?"
-  select answer in "${options[@]}"; do
+  select REPLY in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       make docker

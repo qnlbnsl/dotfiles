@@ -7,18 +7,18 @@ function setup_user() {
     echo "${user} ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/90-${user}-root"
   else
     options=(Yes No)
-    read -p "Please enter user to make: " username
+    read -r -p "Please enter user to make: " username
     prompt="Is this the correct username:"
     PS3="$prompt $username: "
-    select answer in "${options[@]}"; do
+    select REPLY in "${options[@]}"; do
       case $REPLY in
       [yY][eE][sS] | [yY])
-        adduser $username
+        adduser "$username"
         echo "user added"
         break
         ;;
       [nN][oO] | [nN])
-        read -p "Please enter user to make: " username
+        read -r -p "Please enter user to make: " username
         PS3="$prompt $username: "
         continue
         ;;

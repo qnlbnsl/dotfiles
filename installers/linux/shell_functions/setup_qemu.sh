@@ -3,7 +3,7 @@
 setup_qemu_agent() {
   echo "Should i install qemu-guest-agent? "
   options=(Yes No)
-  select answer in "${options[@]}"; do
+  select REPLY in "${options[@]}"; do
     case $REPLY in
     [yY][eE][sS] | [yY])
       sudo apt-get install qemu-guest-agent

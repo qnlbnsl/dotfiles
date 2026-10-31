@@ -7,8 +7,8 @@ function update_fs() {
   # Increasing max watchers. Each file watch consumes up to 1080 bytes.
   # 524288 will be able to use up to 540MB
   maxwatches="fs.inotify.max_user_watches=524288"
-  echo $maxfiles | sudo tee -a /etc/sysctl.conf
-  echo $maxwatches | sudo tee -a /etc/sysctl.conf
+  echo "$maxfiles" | sudo tee -a /etc/sysctl.conf
+  echo "$maxwatches" | sudo tee -a /etc/sysctl.conf
 }
 
 export -f update_fs
