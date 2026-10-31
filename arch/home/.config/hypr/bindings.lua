@@ -84,3 +84,8 @@ o.bind("SUPER + TAB", "Next workspace on this monitor", hl.dsp.focus({ workspace
 o.bind("SUPER + SHIFT + TAB", "Previous workspace on this monitor", hl.dsp.focus({ workspace = "m-1" }))
 o.bind("SUPER + mouse_down", "Next workspace on this monitor", hl.dsp.focus({ workspace = "m+1" }))
 o.bind("SUPER + mouse_up", "Previous workspace on this monitor", hl.dsp.focus({ workspace = "m-1" }))
+
+-- Host-specific extras (e.g. mainpc's Windows VM workspaces), when that host provides them.
+local windows_vm = os.getenv("HOME") .. "/.config/hypr/windows-vm.lua"
+local f = io.open(windows_vm)
+if f then f:close(); require("hypr.windows-vm") end

@@ -15,6 +15,8 @@ VIRTIO_URL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stab
 QEMU_CONF=/etc/libvirt/qemu.conf
 # Earlier versions claimed the A1000 for vfio-pci at boot; remove those if present.
 STALE_VFIO=(/etc/modprobe.d/vfio.conf /etc/mkinitcpio.conf.d/00-vfio.conf)
+# Renamed to 72-… so it runs before 73-seat-late queues the uaccess ACL.
+STALE_RULES=(/etc/udev/rules.d/80-a1000-compute-only.rules)
 
 say() { printf '\n==> %s\n' "$*"; }
 
@@ -34,6 +36,15 @@ sudo systemctl enable --now libvirtd.socket virtlogd.socket
 sudo systemctl restart libvirtd
 sudo virsh -c qemu:///system net-autostart default >/dev/null
 sudo virsh -c qemu:///system net-start default 2>/dev/null || true
+# Omarchy's ufw denies incoming and routed traffic by default, which drops the VM's
+# DHCP/DNS requests to virbr0 and everything the host forwards for it (no internet).
+# These rules cover only virbr0, the host-to-VM network.
+if command -v ufw >/dev/null && sudo ufw status | grep -q '^Status: active'; then
+  sudo ufw allow in on virbr0 >/dev/null
+  sudo ufw route allow in on virbr0 >/dev/null
+  sudo ufw route allow out on virbr0 >/dev/null
+  echo "ufw: allowed the VM network (virbr0)"
+fi
 
 say "RTX A1000: host by default, VM while it runs"
 stale=()
@@ -44,8 +55,23 @@ if ((${#stale[@]})); then
   REBOOT=1
 fi
 # Apply the compute-only rule to the A1000's DRM nodes now (the desktop picks it up on next login).
+sudo rm -fv "${STALE_RULES[@]}"
 sudo udevadm control --reload
 sudo udevadm trigger --subsystem-match=drm
+# gpu-a1000 group + boot-time restriction of the A1000's /dev/nvidiaN (a1000-restrict.service).
+sudo systemd-sysusers /etc/sysusers.d/gpu-a1000.conf
+sudo systemctl daemon-reload
+sudo systemctl enable a1000-restrict.service
+# Without this, NVIDIA's libraries run setuid nvidia-modprobe on EACCES and it resets the
+# file to 0666 (the pacman hook keeps it off after driver updates).
+sudo chmod u-s /usr/bin/nvidia-modprobe
+sudo /usr/local/bin/a1000-restrict
+# `a1000 <cmd>` runs a command with that group (sudoers, validated before install).
+sudo visudo -cf "$VM_DIR/a1000.sudoers" && sudo install -m 0440 -o root -g root "$VM_DIR/a1000.sudoers" /etc/sudoers.d/a1000
+if getent passwd ollama >/dev/null; then sudo usermod -aG gpu-a1000 ollama; fi
+# Apps opened before the restriction keep their handle until they restart.
+holders=$(sudo /etc/libvirt/hooks/qemu.d/a1000-guard win11 prepare begin 2>&1 || true)
+[[ -z $holders ]] || { echo "$holders"; echo "Log out and back in so the desktop reopens without the A1000."; }
 
 say "kvmfr module"
 if ! lsmod | grep -q '^kvmfr'; then
@@ -64,6 +90,20 @@ if [[ ! -f $IMAGES/win11.iso ]]; then
     echo "Windows 11 ISO missing: download it from https://www.microsoft.com/software-download/windows11"
     echo "into ~/Downloads (Win11_*.iso) and re-run 'make arch-vm'."
   fi
+fi
+
+say "Bar icon"
+# Windows icon before the workspaces (windows-desktop starts the VM and shows it on
+# workspace 1 / 11). shell.json is Omarchy's own file, so only insert the module.
+SHELL_JSON=$HOME/.config/omarchy/shell.json
+if [[ -f $SHELL_JSON ]] && ! jq -e '.bar.layout.left[]? | select(.id == "windows")' "$SHELL_JSON" >/dev/null; then
+  tmp=$(mktemp)
+  jq '.bar.layout.left |= ((map(.id) | index("omarchy.workspaces") // length) as $i
+      | .[:$i] + [{"id": "windows", "type": "command", "exec": "~/.local/bin/windows-desktop --status",
+                   "interval": 10, "tooltip": "Windows 11", "onClick": "~/.local/bin/windows-desktop"}] + .[$i:])' \
+    "$SHELL_JSON" >"$tmp" && cat "$tmp" >"$SHELL_JSON"
+  rm -f "$tmp"
+  echo "added the Windows icon to the bar"
 fi
 
 say "VM definition"

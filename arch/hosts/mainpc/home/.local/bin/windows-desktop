@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Windows 11 VM desktop. Workspace 1 (left monitor) and 11 (right monitor) show it through
+# Looking Glass; ~/.config/hypr/windows-vm.lua moves the client to whichever you switch to.
+#   windows-desktop           start the VM if needed and go to this monitor's Windows workspace
+#   windows-desktop --show    open the Looking Glass client if the VM runs (called by Hyprland)
+#   windows-desktop --status  JSON for the bar icon (text, tooltip, class)
+set -u
+
+VM=win11
+virsh_() { virsh -c qemu:///system "$@"; }
+running() { [[ $(virsh_ domstate "$VM" 2>/dev/null | head -1) == running ]]; }
+
+show() {
+  running || return 0
+  # One client: Hyprland can call this several times while it starts.
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/windows-desktop.lock"
+  flock -n 9 || return 0
+  hyprctl clients -j | jq -e --arg c looking-glass-client 'any(.[]; .class == $c)' >/dev/null && return 0
+  setsid uwsm-app -- looking-glass-client >/dev/null 2>&1 9>&- &
+  # Hold the lock until the window exists (or 10s pass).
+  for _ in $(seq 50); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "looking-glass-client")' >/dev/null && break
+    sleep 0.2
+  done
+}
+
+case ${1:-} in
+  --status)
+    glyph=$''
+    if running; then
+      printf '{"text":"%s","tooltip":"Windows 11: running (workspace 1 / 11)","class":"active"}\n' "$glyph"
+    else
+      printf '{"text":"%s","tooltip":"Windows 11: off (click to start)","class":"inactive"}\n' "$glyph"
+    fi
+    exit 0 ;;
+  --show) show; exit 0 ;;
+esac
+
+if ! running; then
+  notify-send "Windows 11" "Starting the VM…"
+  if ! err=$(virsh_ start "$VM" 2>&1); then
+    # e.g. the guard hook naming what still holds the RTX A1000
+    notify-send -u critical "Windows 11 didn't start" "$err"
+    exit 1
+  fi
+fi
+
+# This monitor's first workspace: monitors left to right own 1-10, 11-20, ...
+focused=$(hyprctl monitors -j | jq -r 'sort_by(.x) | to_entries[] | select(.value.focused) | .key')
+ws=$(( ${focused:-0} * 10 + 1 ))
+hyprctl dispatch "hl.dsp.focus({ workspace = \"$ws\" })" >/dev/null
+show

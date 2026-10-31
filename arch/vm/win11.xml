@@ -12,6 +12,7 @@
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
   <name>win11</name>
+  <uuid>a20412dd-d572-450e-812e-244df8b49f3e</uuid>
   <memory unit="GiB">32</memory>
   <currentMemory unit="GiB">32</currentMemory>
   <memoryBacking>
@@ -146,6 +147,7 @@
 
     <!-- virtio-net: Windows needs the driver from virtio-win.iso (NetKVM) before it has network. -->
     <interface type="network">
+      <mac address="52:54:00:7f:ba:5c"/>
       <source network="default"/>
       <model type="virtio"/>
     </interface>
@@ -155,8 +157,10 @@
     <input type="keyboard" bus="virtio"/>
     <input type="mouse" bus="ps2"/>
     <input type="keyboard" bus="ps2"/>
-    <graphics type="spice" autoport="yes">
-      <listen type="none"/>
+    <!-- Looking Glass's client connects here for keyboard/mouse, audio, mic and clipboard
+         (localhost only). virt-manager's console still works too. -->
+    <graphics type="spice" port="5900" autoport="no">
+      <listen type="address" address="127.0.0.1"/>
       <image compression="off"/>
       <gl enable="no"/>
     </graphics>
