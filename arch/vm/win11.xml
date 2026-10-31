@@ -171,10 +171,12 @@
       <audio id="1"/>
     </sound>
     <audio id="1" type="spice"/>
-    <!-- Emulated display for the install, viewed with virt-manager. Once the Looking Glass
-         host app works, change model to type="none" so Windows only drives the A1000. -->
+    <!-- No emulated display: Windows' only screen is the virtual display (Virtual Display
+         Driver) on the A1000, which Looking Glass shows, PIN screen included. To get a
+         virt-manager console back (Looking Glass broken), set model type="vga" and re-run
+         `make arch-vm`, or `virsh edit win11`. -->
     <video>
-      <model type="vga"/>
+      <model type="none"/>
     </video>
 
     <tpm model="tpm-crb">
