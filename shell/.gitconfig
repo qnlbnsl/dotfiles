@@ -28,7 +28,7 @@ status = true
 ff = only
 
 [gpg]
-program = $(which gpg)
+program = /usr/bin/gpg
 
 [merge]
 tool = ediff

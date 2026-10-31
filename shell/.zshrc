@@ -56,10 +56,10 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# If the ssh agent socket is not set or expired, reload it.
-if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-  rl
-fi
+# # If the ssh agent socket is not set or expired, reload it.
+# if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+#   rl
+# fi
 
 # To customize prompt, run `p10k configure` or edit ${HOME}/.p10k.zsh.
 [[ ! -f ${HOME}/.p10k.zsh ]] || source ${HOME}/.p10k.zsh
@@ -68,5 +68,16 @@ eval "$(sheldon source)"
 
 # Tell git to use the current tty for gpg passphrase prompt (needs to be at the end so the tty is within tmux, not out).
 export GPG_TTY=$(tty)
+export PATH="/usr/lib/wsl/lib:$PATH"
 # Stop profiling
 [ -n "${ZPROF}" ] && zprof
+
+# opencode
+export PATH=/home/qnlbnsl/.opencode/bin:$PATH
+
+# bun completions
+[ -s "/home/qnlbnsl/.bun/_bun" ] && source "/home/qnlbnsl/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
