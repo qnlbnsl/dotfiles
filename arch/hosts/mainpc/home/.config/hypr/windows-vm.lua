@@ -24,8 +24,9 @@ for screen = 1, MAX_SCREENS do
 end
 
 local function find_window(class)
-  for _, w in ipairs(hl.get_windows()) do
-    if w.class == class then return w end
+  local windows = hl.get_windows()
+  for i = 1, #windows do
+    if windows[i].class == class then return windows[i] end
   end
 end
 

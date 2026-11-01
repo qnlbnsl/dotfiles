@@ -50,8 +50,8 @@ local function monitor_offset()
   if not active then return 0 end
   local monitors = hl.get_monitors()
   table.sort(monitors, function(a, b) return a.x < b.x end)
-  for i, m in ipairs(monitors) do
-    if m.name == active.name then return (i - 1) * 10 end
+  for i = 1, #monitors do
+    if monitors[i].name == active.name then return (i - 1) * 10 end
   end
   return 0
 end
@@ -78,13 +78,16 @@ end
 -- Pin each monitor's ten workspaces to it, so a workspace created by a window rule or a
 -- script (not just Super+N) lands on its own monitor, and move any that ended up elsewhere.
 -- Redone when monitors change.
+-- Numeric loops over #list, not ipairs: Omarchy's keybinding menu (Super+K) runs this file
+-- against a stub `hl` whose calls return an object that's never nil, so ipairs on it never ends.
 local workspace_pins = {}
 local function pin_workspaces()
   for _, rule in ipairs(workspace_pins) do rule:set_enabled(false) end
   workspace_pins = {}
   local monitors = hl.get_monitors()
   table.sort(monitors, function(a, b) return a.x < b.x end)
-  for i, m in ipairs(monitors) do
+  for i = 1, #monitors do
+    local m = monitors[i]
     for n = 1, 10 do
       local id = tostring((i - 1) * 10 + n)
       table.insert(workspace_pins, hl.workspace_rule({ workspace = id, monitor = m.name }))
