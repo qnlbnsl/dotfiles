@@ -27,6 +27,7 @@ arch/
 │       └── quickshell/overview/config.json
 │   └── .local/bin/
 │       ├── mac-quit-app      Super+Q: close every window of the focused app
+│       ├── omarchy-screensaver  screensaver that also exits on mouse movement
 │       └── slurp             area-picker colors (wraps /usr/bin/slurp)
 ├── system/                   shared, copied to / with sudo (keyd, udev, modules-load)
 ├── wispr-flow/               Wispr Flow build: install.sh + PKGBUILD.in
@@ -75,6 +76,24 @@ The area picker is slurp. `.local/bin/slurp` wraps it so it no longer washes the
 white (slurp's default, which hid the cursor): a 26% mid-gray veil that contrasts both the
 cursor's dark and light edges, a light glass selection, a
 hairline border. It's first on PATH, so Omarchy's screenshot and recording pickers use it.
+
+## Screensaver dismissed by the mouse (`.local/bin/omarchy-screensaver`)
+
+Omarchy's screensaver is a fullscreen Ghostty window per monitor running
+`omarchy-screensaver`, which only exits on a keypress or when the window loses focus.
+With every monitor showing a screensaver, moving the mouse does neither. This copy of the
+stock script (Omarchy 4.0.6) turns on terminal mouse-motion reporting (`?1003h`,
+`?1006h`) so movement reaches the same `read` and exits. It wins because `~/.local/bin`
+comes before `/usr/bin` on PATH. Re-diff it against
+`/usr/share/omarchy/bin/omarchy-screensaver` after Omarchy updates.
+
+If moving the mouse still doesn't dismiss it, check which script the windows run
+(`pstree -ap $(pgrep -f org.omarchy.screensaver | head -1)`). Ghostty runs as one
+systemd service (`app-com.mitchellh.ghostty.service`), so each screensaver window's
+command looks up `omarchy-screensaver` on that service's PATH. A systemd user session
+left over from an older Omarchy can still list `/usr/share/omarchy/bin` first. Remove it
+with `systemctl --user set-environment PATH=...`, then restart the Ghostty service or
+log out and back in.
 
 ## Wispr Flow install (`make arch-wispr`)
 
