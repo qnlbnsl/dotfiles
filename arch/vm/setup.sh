@@ -26,11 +26,13 @@ omarchy-pkg-aur-add looking-glass looking-glass-module-dkms
 
 say "libvirt"
 sudo usermod -aG libvirt,kvm "$USER"
-# QEMU must be allowed to open the Looking Glass device (cgroup device ACL).
-if ! sudo grep -q '^cgroup_device_acl.*kvmfr0' "$QEMU_CONF"; then
-  echo 'cgroup_device_acl = [ "/dev/null", "/dev/full", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/ptmx", "/dev/kvm", "/dev/userfaultfd", "/dev/kvmfr0" ]' \
-    | sudo tee -a "$QEMU_CONF" >/dev/null
-  echo "allowed /dev/kvmfr0 in $QEMU_CONF"
+# QEMU must be allowed to open the Looking Glass devices (cgroup device ACL), one per
+# Windows screen. Replaces an older line that listed fewer.
+ACL='cgroup_device_acl = [ "/dev/null", "/dev/full", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/ptmx", "/dev/kvm", "/dev/userfaultfd", "/dev/kvmfr0", "/dev/kvmfr1", "/dev/kvmfr2" ]'
+if ! sudo grep -qxF "$ACL" "$QEMU_CONF"; then
+  sudo sed -i '/^cgroup_device_acl.*kvmfr/d' "$QEMU_CONF"
+  echo "$ACL" | sudo tee -a "$QEMU_CONF" >/dev/null
+  echo "allowed /dev/kvmfr0-2 in $QEMU_CONF"
 fi
 sudo systemctl enable --now libvirtd.socket virtlogd.socket
 sudo systemctl restart libvirtd
@@ -74,10 +76,22 @@ holders=$(sudo /etc/libvirt/hooks/qemu.d/a1000-guard win11 prepare begin 2>&1 ||
 [[ -z $holders ]] || { echo "$holders"; echo "Log out and back in so the desktop reopens without the A1000."; }
 
 say "kvmfr module"
+# One /dev/kvmfrN per size in static_size_mb (modprobe.d/kvmfr.conf).
+want=$(sed -n 's/.*static_size_mb=//p' /etc/modprobe.d/kvmfr.conf | tr ',' '\n' | grep -c .)
+have=$(ls /dev/kvmfr[0-9]* 2>/dev/null | wc -l)
 if ! lsmod | grep -q '^kvmfr'; then
   sudo modprobe kvmfr && sudo udevadm trigger --subsystem-match=kvmfr || REBOOT=1
+elif ((have != want)); then
+  if [[ $(sudo virsh -c qemu:///system domstate win11 2>/dev/null) == running ]]; then
+    echo "kvmfr has $have device(s), config wants $want: shut Windows down and re-run 'make arch-vm'."
+  else
+    pkill -x looking-glass-c || true   # a client holds /dev/kvmfr0 open
+    sleep 1
+    sudo rmmod kvmfr && sudo modprobe kvmfr && sudo udevadm trigger --subsystem-match=kvmfr || REBOOT=1
+  fi
 fi
-ls -l /dev/kvmfr0 2>/dev/null || true
+sudo udevadm settle
+ls -l /dev/kvmfr* 2>/dev/null || true
 
 say "Installer media in $IMAGES"
 [[ -f $IMAGES/virtio-win.iso ]] || sudo curl -fL -o "$IMAGES/virtio-win.iso" "$VIRTIO_URL"

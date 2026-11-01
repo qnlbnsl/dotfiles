@@ -22,7 +22,7 @@ ifneq (,$(wildcard /usr/bin/Hyprland))
 install: arch-config arch-wispr arch-system arch-theme
 endif
 
-.PHONY: arch-config arch-links arch-overview arch-overview-save arch-packages \
+.PHONY: arch-config arch-vm-serve arch-links arch-overview arch-overview-save arch-packages \
         arch-secureboot arch-system arch-theme arch-vm arch-wispr
 
 # Secure Boot (own keys + Microsoft's) and TPM2 auto-unlock of the LUKS root. Run
@@ -35,6 +35,13 @@ arch-secureboot:
 # (mainpc only, not part of `make install`). See arch/vm/setup.sh.
 arch-vm: arch-system arch-links
 	@bash "$(ARCH_CFG_DIR)/vm/setup.sh"
+
+# Serve arch/vm/windows to the Windows VM (only on the host-to-VM network) so its scripts
+# can be installed from inside Windows. Ctrl+C when done.
+arch-vm-serve:
+	@echo "In an administrator PowerShell in Windows, run:"
+	@echo "  iwr http://192.168.122.1:8765/install-lg-screens.ps1 -UseBasicParsing | iex"
+	@python3 -m http.server 8765 --bind 192.168.122.1 --directory "$(ARCH_CFG_DIR)/vm/windows"
 
 arch-packages:
 	@$(PKG_ADD) $(ARCH_PACKAGES) || { $(STALE_DB_HINT); }

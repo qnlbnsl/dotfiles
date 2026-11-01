@@ -75,6 +75,31 @@ for n = 1, 10 do
   end)
 end
 
+-- Pin each monitor's ten workspaces to it, so a workspace created by a window rule or a
+-- script (not just Super+N) lands on its own monitor, and move any that ended up elsewhere.
+-- Redone when monitors change.
+local workspace_pins = {}
+local function pin_workspaces()
+  for _, rule in ipairs(workspace_pins) do rule:set_enabled(false) end
+  workspace_pins = {}
+  local monitors = hl.get_monitors()
+  table.sort(monitors, function(a, b) return a.x < b.x end)
+  for i, m in ipairs(monitors) do
+    for n = 1, 10 do
+      local id = tostring((i - 1) * 10 + n)
+      table.insert(workspace_pins, hl.workspace_rule({ workspace = id, monitor = m.name }))
+      local ws = hl.get_workspace(id)
+      if ws and ws.monitor and ws.monitor.name ~= m.name then
+        hl.dispatch(hl.dsp.workspace.move({ workspace = id, monitor = m.name }))
+      end
+    end
+  end
+end
+pin_workspaces()
+hl.on("hyprland.start", pin_workspaces)
+hl.on("monitor.added", pin_workspaces)
+hl.on("monitor.removed", pin_workspaces)
+
 -- Cycle only through this monitor's workspaces.
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
