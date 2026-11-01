@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Relay "move the Windows cursor" requests from Hyprland into the Windows VM.
+
+Each Windows screen is its own Looking Glass window, and a window only sees the Windows
+cursor while it's on its own screen. When the mouse moves onto another screen's window,
+Hyprland (~/.config/hypr/windows-vm.lua) sends "<screen> <x> <y>" (x, y as 0-1 fractions
+of the window) to the unix datagram socket below; this forwards the line to the Windows
+script (arch/vm/windows/lg-screens.ps1), which connects in over the host-to-VM network
+and puts the cursor there. Started by Hyprland at login; one instance per session.
+"""
+import fcntl
+import os
+import selectors
+import socket
+import time
+
+HOST, PORT = "192.168.122.1", 8766   # virbr0: only the VM can reach it
+RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+SOCK = os.path.join(RUNTIME, "windows-cursor.sock")
+
+lock = open(os.path.join(RUNTIME, "windows-cursor-bridge.lock"), "w")
+try:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    raise SystemExit(0)   # already running
+
+# virbr0 exists only while libvirt's network is up: wait for it.
+while True:
+    try:
+        server = socket.create_server((HOST, PORT))
+        break
+    except OSError:
+        time.sleep(5)
+
+if os.path.exists(SOCK):
+    os.unlink(SOCK)
+requests = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+requests.bind(SOCK)
+
+sel = selectors.DefaultSelector()
+sel.register(server, selectors.EVENT_READ, "accept")
+sel.register(requests, selectors.EVENT_READ, "request")
+windows = set()
+
+def drop(conn):
+    windows.discard(conn)
+    try:
+        sel.unregister(conn)
+    except (KeyError, ValueError):
+        pass
+    conn.close()
+
+while True:
+    for key, _ in sel.select():
+        if key.data == "accept":
+            conn, _ = server.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            windows.add(conn)
+            sel.register(conn, selectors.EVENT_READ, "windows")
+        elif key.data == "request":
+            line = requests.recv(256).strip() + b"\n"
+            for conn in list(windows):
+                try:
+                    conn.sendall(line)
+                except OSError:
+                    drop(conn)
+        else:   # Windows side closed (it never sends anything)
+            if not key.fileobj.recv(256):
+                drop(key.fileobj)

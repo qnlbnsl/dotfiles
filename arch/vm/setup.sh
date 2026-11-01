@@ -21,7 +21,7 @@ STALE_RULES=(/etc/udev/rules.d/80-a1000-compute-only.rules)
 say() { printf '\n==> %s\n' "$*"; }
 
 say "Packages"
-omarchy-pkg-add qemu-full libvirt edk2-ovmf swtpm dnsmasq virt-manager usbutils linux-omarchy-headers
+omarchy-pkg-add qemu-full libvirt edk2-ovmf swtpm dnsmasq virt-manager usbutils linux-omarchy-headers socat jq
 omarchy-pkg-aur-add looking-glass looking-glass-module-dkms
 
 say "libvirt"
@@ -126,5 +126,15 @@ sudo virsh -c qemu:///system define "$VM_DIR/win11.xml"
 if [[ ${REBOOT:-0} == 1 ]]; then
   say "Reboot needed: the initramfs no longer claims the RTX A1000 (and kvmfr loads at boot)."
 else
-  say "Ready. Start the install: virt-manager (win11 → Open → Run)."
+  say "Ready."
+  cat <<'NEXT'
+New install: virt-manager (win11 → Open → Run), then inside Windows:
+  1. virtio-win-guest-tools.exe from the virtio CD, the NVIDIA RTX A1000 driver,
+     Virtual Display Driver (one screen per monitor, 2560x1440, extended),
+     Looking Glass B7 host (looking-glass-host-setup.exe).
+  2. Multi-screen + mouse jumping: run `make arch-vm-serve` here, then in an
+     administrator PowerShell in Windows:
+       iwr http://192.168.122.1:8765/install-lg-screens.ps1 -UseBasicParsing | iex
+After that: the Windows icon in the bar, or workspace 1 / 11 / 21 while it runs.
+NEXT
 fi

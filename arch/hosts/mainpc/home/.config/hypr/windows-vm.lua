@@ -33,6 +33,38 @@ end
 -- back when it stops (windows-desktop --watch).
 hl.on("hyprland.start", function()
   hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/windows-desktop --watch")
+  hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/windows-cursor-bridge")
+end)
+
+-- Mouse jumping: a Looking Glass window only sees the Windows cursor while it's on its own
+-- screen, so entering another screen's window left the cursor stranded on the old screen
+-- for a few seconds. When focus moves onto a Windows screen's window, send that screen and
+-- where the mouse is inside the window; lg-screens.ps1 in Windows puts the cursor there
+-- (relayed by windows-cursor-bridge).
+local function xy(v)
+  if type(v) ~= "table" then return nil end
+  return v.x or v[1], v.y or v[2]
+end
+
+hl.on("window.active", function()
+  local w = hl.get_active_window()
+  if not w or not w.class then return end
+  local screen
+  if w.class == "looking-glass-client" then
+    screen = 1
+  else
+    screen = tonumber(w.class:match("^looking%-glass%-client%-(%d+)$"))
+  end
+  if not screen then return end
+
+  local cursor = hl.get_cursor_pos()
+  local ax, ay = xy(w.at)
+  local sw, sh = xy(w.size)
+  if not (cursor and ax and sw and sw > 0 and sh > 0) then return end
+  local fx = math.min(math.max((cursor.x - ax) / sw, 0), 1)
+  local fy = math.min(math.max((cursor.y - ay) / sh, 0), 1)
+  hl.exec_cmd(string.format("printf '%%d %%.4f %%.4f' %d %f %f | socat -u - UNIX-SENDTO:%s/windows-cursor.sock",
+    screen, fx, fy, os.getenv("XDG_RUNTIME_DIR") or "/tmp"))
 end)
 
 hl.on("workspace.active", function()
