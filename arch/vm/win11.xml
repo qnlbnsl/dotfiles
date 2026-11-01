@@ -16,6 +16,9 @@
   <memory unit="GiB">32</memory>
   <currentMemory unit="GiB">32</currentMemory>
   <memoryBacking>
+    <!-- 2 MiB hugepages, reserved only while the VM runs (hooks/qemu.d/win11-tuning):
+         with 4 KiB pages the nested page walks cost 10-30% on memory-heavy work. -->
+    <hugepages/>
     <source type="memfd"/>
     <access mode="shared"/>
   </memoryBacking>
@@ -133,6 +136,14 @@
       </source>
     </hostdev>
 
+    <!-- 3Dconnexion SpaceMouse Pro for CAD; optional so the VM starts without it. -->
+    <hostdev mode="subsystem" type="usb" managed="yes">
+      <source startupPolicy="optional">
+        <vendor id="0x046d"/>
+        <product id="0xc62b"/>
+      </source>
+    </hostdev>
+
     <controller type="usb" model="qemu-xhci" ports="15"/>
     <controller type="sata" index="0"/>
     <controller type="pci" model="pcie-root"/>
@@ -171,8 +182,10 @@
       <audio id="1"/>
     </sound>
     <audio id="1" type="spice"/>
-    <!-- No emulated display: Windows' only screen is the virtual display (Virtual Display
-         Driver) on the A1000, which Looking Glass shows, PIN screen included. To get a
+    <!-- No emulated display: Windows' only screen is a dummy plug (2560x1440) in one of the
+         A1000's outputs, which Looking Glass shows, PIN screen included. Not the Virtual
+         Display Driver: its WUDFHost pegged a core and froze the whole desktop for 250-500 ms
+         at a time (disabled in Windows, 2026-11-01). To get a
          virt-manager console back (Looking Glass broken), set model type="vga" and re-run
          `make arch-vm`, or `virsh edit win11`. -->
     <video>

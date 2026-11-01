@@ -16,6 +16,8 @@ end
 o.window("^looking-glass-client(-[0-9]+)?$", {
   fullscreen = true,
   idle_inhibit = "fullscreen",
+  -- Never let a Windows screen pull focus/workspace/mouse to itself (see looking-glass client.ini).
+  focus_on_activate = false,
   tag = "-default-opacity",
   opacity = "1 1",
 })

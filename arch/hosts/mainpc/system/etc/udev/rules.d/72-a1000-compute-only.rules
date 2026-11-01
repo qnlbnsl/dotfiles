@@ -8,6 +8,15 @@
 # uaccess ACL for anything still tagged. := so no later rule can loosen the mode.
 SUBSYSTEM=="drm", KERNEL=="card*|renderD*", KERNELS=="0000:0d:00.0", TAG-="seat", TAG-="master-of-seat", TAG-="uaccess", MODE:="0600", GROUP:="root"
 
+# The tag removal above isn't enough: udev keeps tags a device had in earlier events, so
+# logind still saw the card on seat0, and Hyprland opens any GPU that appears mid-session
+# (aquamarine's onNewGpu ignores AQ_DRM_DEVICES). With a display (dummy plug) attached,
+# Hyprland lit an output on it, and the a1000-guard's synthetic remove at VM start then
+# crashed Hyprland (CDRMBackend::cancelAsyncOutput, 2026-11-01). Put the card on its own
+# seat: logind refuses TakeDevice for another seat's device (session_device_verify:
+# device->seat != session->seat -> EPERM), so Hyprland can never open it.
+SUBSYSTEM=="drm", KERNEL=="card*|renderD*", KERNELS=="0000:0d:00.0", ENV{ID_SEAT}:="seat-a1000"
+
 # logind still hands Hyprland any DRM card it asks for, so Hyprland is also told to use
 # only the RTX 3090 (AQ_DRM_DEVICES in ~/.config/uwsm/env-hyprland). That list is
 # colon-separated, so give the 3090 a colon-free name (by-path names contain colons).

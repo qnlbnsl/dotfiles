@@ -14,7 +14,11 @@
 set -u
 
 VM=win11
-virsh_() { virsh -c qemu:///system "$@"; }
+# Windows screens to show. 1 = the A1000's own output (dummy plug / real monitor). The Virtual
+# Display Driver screens stalled the whole Windows desktop (WUDFHost pegging a core, frames
+# stopping for 250-500 ms), so it's disabled in Windows; raise this with more real outputs.
+MAX_SCREENS=1
+virsh_(){ virsh -c qemu:///system "$@"; }
 running() { [[ $(virsh_ domstate "$VM" 2>/dev/null | head -1) == running ]]; }
 
 lg_class() { (( $1 == 1 )) && echo looking-glass-client || echo "looking-glass-client-$1"; }
@@ -29,6 +33,7 @@ show() {
   devs=$(ls /dev/kvmfr[0-9]* 2>/dev/null | wc -l)
   mons=$(hyprctl monitors -j | jq length)
   screens=$(( devs < mons ? devs : mons ))
+  (( screens > MAX_SCREENS )) && screens=$MAX_SCREENS
   for (( k = 1; k <= screens; k++ )); do
     class=$(lg_class $k)
     lg_open "$class" && continue
@@ -52,7 +57,7 @@ LG_CLASS=looking-glass-client
 SHIFTED=${XDG_RUNTIME_DIR:-/tmp}/windows-desktop.shifted   # lines: <first ws> <last ws moved>
 
 # First workspace of each monitor, left to right: 1, 11, 21, ...
-bases() { hyprctl monitors -j | jq -r 'sort_by(.x) | to_entries[] | .key * 10 + 1'; }
+bases() { hyprctl monitors -j | jq -r 'sort_by(.x) | to_entries[] | .key * 10 + 1' | head -n "$MAX_SCREENS"; }
 # Addresses of the (non-Looking Glass) windows on a workspace.
 windows_on() { hyprctl clients -j | jq -r --argjson ws "$1" --arg lg "$LG_CLASS" '.[] | select(.workspace.id == $ws and (.class | startswith($lg) | not) and (.pinned | not)) | .address'; }
 move_all() { # <from ws> <to ws>

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# win11: hugepages for guest RAM + keep the host off the VM's cores while it runs.
+[[ $1 == win11 ]] || exit 0
+VM_CPUS=8-15,24-31
+HOST_CPUS=0-7,16-23
+ALL_CPUS=0-31
+# workqueue/cpumask takes a hex bitmask, not a list: 0-7,16-23 = 0x00ff00ff.
+HOST_MASK=00ff00ff
+ALL_MASK=ffffffff
+PAGES=16384                     # 2 MiB pages = 32 GiB, the VM's <memory>
+
+case "$2/$3" in
+  prepare/begin)
+    # Free and defragment RAM so 32 GiB of 2 MiB pages can be found, then reserve them.
+    sync; echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory
+    echo $PAGES > /proc/sys/vm/nr_hugepages
+    got=$(cat /proc/sys/vm/nr_hugepages)
+    if (( got < PAGES )); then
+      echo 0 > /proc/sys/vm/nr_hugepages
+      echo "win11-tuning: only $got/$PAGES hugepages available" >&2; exit 1
+    fi ;;
+  started/begin)
+    # Host processes and kernel workqueues off the VM's cores.
+    systemctl set-property --runtime user.slice   AllowedCPUs=$HOST_CPUS
+    systemctl set-property --runtime system.slice AllowedCPUs=$HOST_CPUS
+    systemctl set-property --runtime init.scope   AllowedCPUs=$HOST_CPUS
+    echo $HOST_MASK > /sys/devices/virtual/workqueue/cpumask 2>/dev/null
+    # Hardware interrupts off them too (some IRQs can't move; that's fine).
+    for f in /proc/irq/*/smp_affinity_list; do echo $HOST_CPUS > "$f" 2>/dev/null; done ;;
+  release/end)
+    systemctl set-property --runtime user.slice   AllowedCPUs=$ALL_CPUS
+    systemctl set-property --runtime system.slice AllowedCPUs=$ALL_CPUS
+    systemctl set-property --runtime init.scope   AllowedCPUs=$ALL_CPUS
+    echo $ALL_MASK > /sys/devices/virtual/workqueue/cpumask 2>/dev/null
+    for f in /proc/irq/*/smp_affinity_list; do echo $ALL_CPUS > "$f" 2>/dev/null; done
+    echo 0 > /proc/sys/vm/nr_hugepages ;;
+esac
+exit 0

@@ -130,8 +130,8 @@ else
   cat <<'NEXT'
 New install: virt-manager (win11 → Open → Run), then inside Windows:
   1. virtio-win-guest-tools.exe from the virtio CD, the NVIDIA RTX A1000 driver,
-     Virtual Display Driver (one screen per monitor, 2560x1440, extended),
-     Looking Glass B7 host (looking-glass-host-setup.exe).
+     Looking Glass B7 host (looking-glass-host-setup.exe). Screen: a dummy plug in an
+     A1000 output, set to 2560x1440 (not Virtual Display Driver: it stalls the desktop).
   2. Multi-screen + mouse jumping: run `make arch-vm-serve` here, then in an
      administrator PowerShell in Windows:
        iwr http://192.168.122.1:8765/install-lg-screens.ps1 -UseBasicParsing | iex
