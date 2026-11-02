@@ -9,6 +9,19 @@
   Audio + mic:  SPICE audio, played/recorded by the Looking Glass client on the host.
   Input:        SPICE via the Looking Glass client.
   CPU:          the second CCD (cores 8-15 = host CPUs 8-15 + 24-31); emulator on CCD 1.
+
+  Activation identity (Windows Pro, retail, activated 2026-11-01): Windows' digital license
+  is tied to a hardware fingerprint. The passed-through NVMe, A1000 and CPU are real hardware
+  and stay the same; these values are made up by libvirt/QEMU, so keep them exactly as they
+  are or a rebuilt VM shows up as a new PC and asks to activate again:
+    - <uuid> below            = SMBIOS system UUID (Windows: A20412DD-D572-450E-812E-244DF8B49F3E)
+    - machine="pc-q35-11.1"   = SMBIOS system version; plain "q35" would resolve to the newest
+                                QEMU machine and change it after a QEMU upgrade
+    - <mac address> (virtio NIC) 52:54:00:7f:ba:5c
+  SMBIOS otherwise QEMU's defaults: vendor QEMU, "Standard PC (Q35 + ICH9, 2009)", BIOS EDK II.
+  If it still asks: Settings > Activation > Troubleshoot > "I changed hardware on this device"
+  (needs the license linked to the Microsoft account). The key itself is not stored here.
+  BitLocker is off, so a fresh software TPM after a rebuild only costs the Windows Hello PIN.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
   <name>win11</name>
@@ -43,7 +56,8 @@
     <emulatorpin cpuset="0-1,16-17"/>
   </cputune>
   <os firmware="efi">
-    <type arch="x86_64" machine="q35">hvm</type>
+    <!-- Pinned: the machine version is part of Windows' activation fingerprint (see top). -->
+    <type arch="x86_64" machine="pc-q35-11.1">hvm</type>
     <!-- Arch's edk2-ovmf secure-boot build ships its vars template without Microsoft keys
          (no "enrolled-keys" descriptor), so only ask for secure-boot; Windows 11 needs a
          Secure Boot-capable UEFI + TPM, not pre-enrolled keys. -->
