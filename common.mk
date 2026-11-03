@@ -5,7 +5,6 @@
 # Files in shell/ that get symlinked to ~/
 # NOTE: .zshenv is OS-specific (ZSHENV_SRC) and is not in shell/.
 LINKS_SRCS = .aliases \
-             .android \
              .autoload \
              .editorconfig \
              .gitconfig \
