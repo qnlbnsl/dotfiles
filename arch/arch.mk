@@ -119,5 +119,8 @@ arch-system: arch-packages
 # Build Wispr Flow from the newest Wispr installer and install it as a package
 # (falls back to wispr-flow-linux's pinned version if the newest doesn't build).
 # No-op when that version is already installed; FORCE=1 rebuilds, PINNED=1 builds the pin.
-arch-wispr:
+# Also enables wispr-mute, which makes Wispr's "mute music while dictating" setting work.
+arch-wispr: arch-links
 	@"$(ARCH_CFG_DIR)/wispr-flow/install.sh"
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now wispr-mute.service

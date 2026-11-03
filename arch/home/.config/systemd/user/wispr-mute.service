@@ -1,0 +1,12 @@
+[Unit]
+Description=Mute other apps' audio while Wispr Flow is dictating
+After=pipewire-pulse.service
+Wants=pipewire-pulse.service
+
+[Service]
+ExecStart=%h/.local/bin/wispr-mute
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
