@@ -37,8 +37,51 @@ hl.unbind("SUPER + SHIFT + code:13")
 o.bind("SUPER + SHIFT + code:12", "Screenshot full screen", "omarchy-capture-screenshot fullscreen")
 o.bind("SUPER + SHIFT + code:13", "Screenshot area", "omarchy-capture-screenshot region")
 
--- Cmd+Q: quit the focused app, closing all its windows (Super+W still closes just one).
+-- Cmd+Q: quit the focused app, closing all its windows (Super+Alt+W closes just one).
 o.bind("SUPER + Q", "Quit app", "mac-quit-app")
+
+-- macOS tab keys, like Omarchy's universal Super+C/V: send the app's own Ctrl shortcut.
+-- Same send method as default/hypr/bindings/clipboard.lua (key down, then up 50 ms later,
+-- so the held Super doesn't merge in and the key doesn't stick).
+local function send_keys(mods, key)
+  hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
+  hl.timer(function()
+    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
+  end, { timeout = 50, type = "oneshot" })
+end
+
+-- Terminals get different keys: Ctrl+W there deletes a word, and Ghostty's new tab is
+-- Ctrl+Shift+T. Uses Omarchy's "terminal" window tag (default/hypr/apps/terminals.lua).
+local function in_terminal()
+  local window = hl.get_active_window()
+  if not window or not window.tags then return false end
+  for i = 1, #window.tags do
+    if window.tags[i]:gsub("%*$", "") == "terminal" then return true end
+  end
+  return false
+end
+
+-- Super+W: close the tab (Cmd+W); in a terminal, close the window as before.
+-- Was "Close window", which moves to Super+Alt+W.
+hl.unbind("SUPER + W")
+o.bind("SUPER + W", "Close tab", function()
+  if in_terminal() then
+    hl.dispatch(hl.dsp.window.close())
+  else
+    send_keys("CTRL", "W")
+  end
+end)
+o.bind("SUPER + ALT + W", "Close window", hl.dsp.window.close())
+
+-- Super+T: new tab (Cmd+T). Was "Toggle window floating/tiling", which moves to Super+Alt+T.
+hl.unbind("SUPER + T")
+o.bind("SUPER + T", "New tab", function()
+  if in_terminal() then send_keys("CTRL SHIFT", "T") else send_keys("CTRL", "T") end
+end)
+o.bind("SUPER + ALT + T", "Toggle window floating/tiling", hl.dsp.window.float({ action = "toggle" }))
+
+-- Super+Shift+T: reopen the last closed tab (Cmd+Shift+T).
+o.bind("SUPER + SHIFT + T", "Reopen closed tab", function() send_keys("CTRL SHIFT", "T") end)
 
 -- macOS-style per-monitor workspaces: every monitor gets its own 1-10.
 -- Monitors are ordered left to right; monitor k owns workspaces k*10+1 .. k*10+10,
