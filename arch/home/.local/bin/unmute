@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Unmute every playing audio stream. Rescue for an app stuck silent after
+# wispr-mute: WirePlumber saves per-app mute, so one stuck stream keeps that
+# app muted across new streams until something clears it.
+for i in $(pactl list short sink-inputs | cut -f1); do
+  pactl set-sink-input-mute "$i" 0
+done
