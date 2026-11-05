@@ -10,6 +10,10 @@ stream is the signal: while it exists, every playback stream not owned by
 Wispr is muted, including ones that start mid-dictation. When it closes, only
 the streams muted here are unmuted (anything you had muted stays muted).
 
+A stream that closes while muted here can't be unmuted, and WirePlumber has
+saved that mute against the app's name, so the app's next stream starts muted.
+Those apps are remembered as "stale", and their next muted stream is put right.
+
 Controlled by Wispr's own setting: prefs.user.shouldMuteAudio in
 ~/.config/Wispr Flow/config.json, read each time dictation starts.
 
@@ -51,6 +55,10 @@ def is_wispr(stream):
     return binary.startswith("wispr-flow") or "wispr" in name
 
 
+def app_name(stream):
+    return stream.get("properties", {}).get("application.name") or ""
+
+
 def describe(stream):
     p = stream.get("properties", {})
     return "{} ({})".format(
@@ -81,42 +89,77 @@ def set_mute(index, muted):
     )
 
 
-def save_state(muted):
+def save_state(muted, stale):
     try:
         with open(STATE, "w") as f:
-            json.dump(sorted(muted), f)
+            json.dump({
+                "muted": {str(i): app for i, app in muted.items()},
+                "stale": sorted(stale),
+            }, f)
     except OSError:
         pass
 
 
 def load_state():
+    """Returns (muted, stale): {sink-input index: app name} and a set of app names."""
     try:
         with open(STATE) as f:
-            return set(json.load(f))
-    except (OSError, ValueError):
-        return set()
+            data = json.load(f)
+        return (
+            {int(i): app for i, app in data["muted"].items()},
+            set(data["stale"]),
+        )
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}, set()
 
 
 class Muter:
     def __init__(self):
         self.active = False  # dictation in progress and muting enabled
-        self.muted = set()   # sink-input indexes muted by us
+        self.muted = {}      # sink-input index -> app name, muted by us
+        self.stale = set()   # apps whose saved mute we left behind
 
         # A previous run that died mid-dictation leaves streams muted.
-        leftover = load_state()
-        if leftover:
-            log(f"restoring streams left muted by a previous run: {sorted(leftover)}")
-            self.muted = leftover
+        self.muted, self.stale = load_state()
+        if self.muted:
+            log(f"restoring streams left muted by a previous run: {sorted(self.muted)}")
             self.restore()
 
+    def forget_closed(self, streams):
+        """Streams we muted that have closed leave a saved mute behind for their app."""
+        live = {s["index"] for s in streams}
+        for index in set(self.muted) - live:
+            app = self.muted.pop(index)
+            if app:
+                self.stale.add(app)
+                log(f"{index} ({app}) closed while muted; will clear its saved mute")
+
+    def clear_stale(self, streams):
+        """Put right a stale app's next muted stream, restored by WirePlumber."""
+        for s in streams:
+            app = app_name(s)
+            if app not in self.stale or not s.get("mute"):
+                continue
+            self.stale.discard(app)
+            if s["index"] in self.muted:
+                continue  # already ours; unmuting it after dictation clears the save
+            if self.active:
+                self.muted[s["index"]] = app
+            else:
+                set_mute(s["index"], False)
+                log(f"cleared saved mute on {describe(s)}")
+
     def restore(self):
-        live = {s["index"] for s in pactl_json("sink-inputs")}
-        for index in self.muted & live:
+        streams = pactl_json("sink-inputs")
+        self.forget_closed(streams)
+        for index in self.muted:
             set_mute(index, False)
         if self.muted:
-            log(f"unmuted {sorted(self.muted & live)}")
+            log(f"unmuted {sorted(self.muted)}")
         self.muted.clear()
-        save_state(self.muted)
+        # Streams just unmuted report their old state until re-listed, so use a fresh list.
+        self.clear_stale(pactl_json("sink-inputs"))
+        save_state(self.muted, self.stale)
 
     def update(self):
         recording = [s for s in pactl_json("source-outputs") if is_wispr(s)]
@@ -124,28 +167,36 @@ class Muter:
             log(f"wispr capture streams: {[describe(s) for s in recording]}")
 
         if recording and not self.active:
-            if not mute_enabled():
-                return  # setting off: leave audio alone for this dictation
-            self.active = True
-            log("dictation started: muting other apps")
+            if mute_enabled():
+                self.active = True
+                log("dictation started: muting other apps")
         elif not recording and self.active:
             self.active = False
             log("dictation ended")
             self.restore()
             return
 
-        if not self.active:
-            return
+        streams = pactl_json("sink-inputs")
+        self.forget_closed(streams)
+        self.clear_stale(streams)
 
-        # Mute anything playing that isn't Wispr and isn't already muted,
-        # including streams that started during dictation.
-        for s in pactl_json("sink-inputs"):
-            if is_wispr(s) or s["index"] in self.muted or s.get("mute"):
-                continue
-            set_mute(s["index"], True)
-            self.muted.add(s["index"])
-            log(f"muted {describe(s)}")
-        save_state(self.muted)
+        if self.active:
+            # Mute anything playing that isn't Wispr and isn't already muted,
+            # including streams that started during dictation.
+            for s in streams:
+                if is_wispr(s) or s["index"] in self.muted or s.get("mute"):
+                    continue
+                set_mute(s["index"], True)
+                self.muted[s["index"]] = app_name(s)
+                log(f"muted {describe(s)}")
+        save_state(self.muted, self.stale)
+
+    def reconnect(self):
+        """PipeWire restarted: every stream is gone, but the saved mutes aren't."""
+        self.active = False
+        self.stale.update(app for app in self.muted.values() if app)
+        self.muted.clear()
+        save_state(self.muted, self.stale)
 
 
 MUTER = None
@@ -161,18 +212,17 @@ def main():
         )
         for line in proc.stdout:
             # e.g. "Event 'new' on source-output #123"
-            if "source-output" in line or (muter.active and "sink-input" in line):
+            if "source-output" in line or (
+                (muter.active or muter.stale) and "sink-input" in line
+            ):
                 try:
                     muter.update()
                 except (subprocess.CalledProcessError, ValueError) as e:
                     log(f"update failed: {e}")
-        # pactl exits when PipeWire restarts; streams are gone, so unmute
-        # bookkeeping is moot. Reconnect.
+        # pactl exits when PipeWire restarts. Reconnect.
         proc.wait()
         log("pactl subscribe exited; reconnecting")
-        muter.active = False
-        muter.muted.clear()
-        save_state(muter.muted)
+        muter.reconnect()
         time.sleep(2)
 
 
