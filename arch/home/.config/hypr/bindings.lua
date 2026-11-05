@@ -61,15 +61,12 @@ local function in_terminal()
   return false
 end
 
--- Super+W: close the tab (Cmd+W); in a terminal, close the window as before.
+-- Super+W: close the tab (Cmd+W). The app closes its own window when that was the last tab,
+-- so this never quits a window with other tabs open. Only Super+Q quits an app.
 -- Was "Close window", which moves to Super+Alt+W.
 hl.unbind("SUPER + W")
 o.bind("SUPER + W", "Close tab", function()
-  if in_terminal() then
-    hl.dispatch(hl.dsp.window.close())
-  else
-    send_keys("CTRL", "W")
-  end
+  if in_terminal() then send_keys("CTRL SHIFT", "W") else send_keys("CTRL", "W") end
 end)
 o.bind("SUPER + ALT + W", "Close window", hl.dsp.window.close())
 
