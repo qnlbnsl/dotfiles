@@ -119,6 +119,13 @@ if [[ -f $SHELL_JSON ]] && ! jq -e '.bar.layout.left[]? | select(.id == "windows
   rm -f "$tmp"
   echo "added the Windows icon to the bar"
 fi
+# Right click swaps which monitor shows which Windows screen.
+if [[ -f $SHELL_JSON ]] && jq -e '.bar.layout.left[]? | select(.id == "windows" and .onRightClick == null)' "$SHELL_JSON" >/dev/null; then
+  tmp=$(mktemp)
+  jq '(.bar.layout.left[] | select(.id == "windows")).onRightClick = "~/.local/bin/windows-desktop --swap"' \
+    "$SHELL_JSON" >"$tmp" && cat "$tmp" >"$SHELL_JSON"
+  rm -f "$tmp"
+fi
 
 say "VM definition"
 sudo virsh -c qemu:///system define "$VM_DIR/win11.xml"
@@ -130,8 +137,8 @@ else
   cat <<'NEXT'
 New install: virt-manager (win11 → Open → Run), then inside Windows:
   1. virtio-win-guest-tools.exe from the virtio CD, the NVIDIA RTX A1000 driver,
-     Looking Glass B7 host (looking-glass-host-setup.exe). Screen: a dummy plug in an
-     A1000 output, set to 2560x1440 (not Virtual Display Driver: it stalls the desktop).
+     Looking Glass B7 host (looking-glass-host-setup.exe). Screens: two dummy plugs in
+     A1000 outputs, extended left to right (not Virtual Display Driver: it stalls the desktop).
   2. Multi-screen + mouse jumping: run `make arch-vm-serve` here, then in an
      administrator PowerShell in Windows:
        iwr http://192.168.122.1:8765/install-lg-screens.ps1 -UseBasicParsing | iex

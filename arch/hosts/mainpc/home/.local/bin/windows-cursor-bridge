@@ -65,5 +65,9 @@ while True:
                 except OSError:
                     drop(conn)
         else:   # Windows side closed (it never sends anything)
-            if not key.fileobj.recv(256):
+            try:
+                closed = not key.fileobj.recv(256)
+            except OSError:   # connection reset: Windows rebooted or was forced off
+                closed = True
+            if closed:
                 drop(key.fileobj)

@@ -142,6 +142,9 @@ pin_workspaces()
 hl.on("hyprland.start", pin_workspaces)
 hl.on("monitor.added", pin_workspaces)
 hl.on("monitor.removed", pin_workspaces)
+-- A monitor that just woke up can still be at its old position when monitor.added fires, which
+-- sorted the two the wrong way round and put 1-10 on the right.
+hl.on("monitor.layout_changed", pin_workspaces)
 
 -- Cycle only through this monitor's workspaces.
 hl.unbind("SUPER + TAB")

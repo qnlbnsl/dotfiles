@@ -11,18 +11,51 @@
 #                             up to the first empty one); when it stops, close Looking Glass
 #                             and move everything back.
 #   windows-desktop --shift / --unshift   do just that part.
+#   windows-desktop --swap    swap which monitor shows Windows screens 1 and 2 (bar icon right
+#                             click); remembered across reboots.
 set -u
 
 VM=win11
-# Windows screens to show. 1 = the A1000's own output (dummy plug / real monitor). The Virtual
-# Display Driver screens stalled the whole Windows desktop (WUDFHost pegging a core, frames
-# stopping for 250-500 ms), so it's disabled in Windows; raise this with more real outputs.
-MAX_SCREENS=1
+# Windows screens to show: one per dummy plug in the A1000's outputs. The Virtual Display Driver
+# screens stalled the whole Windows desktop (WUDFHost pegging a core, frames stopping for
+# 250-500 ms), so it's disabled in Windows; raise this with more real outputs.
+MAX_SCREENS=2
 virsh_(){ virsh -c qemu:///system "$@"; }
 running() { [[ $(virsh_ domstate "$VM" 2>/dev/null | head -1) == running ]]; }
 
 lg_class() { (( $1 == 1 )) && echo looking-glass-client || echo "looking-glass-client-$1"; }
 lg_open() { hyprctl clients -j | jq -e --arg c "$1" 'any(.[]; .class == $c)' >/dev/null; }
+
+# This flag file means screens 1 and 2 trade workspaces; windows-vm.lua reads it too.
+SWAP_FILE=${XDG_STATE_HOME:-$HOME/.local/state}/windows-desktop/swapped
+screen_ws() { # <screen>: the workspace that shows it
+  local k=$1
+  [[ -f $SWAP_FILE ]] && (( k <= 2 )) && k=$(( 3 - k ))
+  echo $(( (k - 1) * 10 + 1 ))
+}
+lg_info() { # <class>: "<address> <workspace> <fullscreen>" if that window is open
+  hyprctl clients -j | jq -r --arg c "$1" 'first(.[] | select(.class == $c)) | "\(.address) \(.workspace.id) \(.fullscreen)"'
+}
+place() { # put each open Looking Glass window on its workspace, fullscreen
+  local k a ws fs want
+  for (( k = 1; k <= MAX_SCREENS; k++ )); do
+    read -r a ws fs <<<"$(lg_info "$(lg_class "$k")")"
+    want=$(screen_ws "$k")
+    [[ -n ${a:-} && $ws != "$want" ]] || continue
+    hyprctl dispatch "hl.dsp.window.move({ workspace = \"$want\", window = \"address:$a\", follow = false })" >/dev/null
+  done
+  # After every move: two fullscreen windows sharing a workspace, even briefly, can drop it.
+  for (( k = 1; k <= MAX_SCREENS; k++ )); do
+    read -r a ws fs <<<"$(lg_info "$(lg_class "$k")")"
+    [[ -n ${a:-} && ${fs:-1} == 0 ]] || continue
+    hyprctl dispatch "hl.dsp.window.fullscreen({ mode = \"fullscreen\", window = \"address:$a\" })" >/dev/null
+  done
+}
+swap() {
+  mkdir -p "$(dirname "$SWAP_FILE")"
+  if [[ -f $SWAP_FILE ]]; then rm -f "$SWAP_FILE"; else : >"$SWAP_FILE"; fi
+  place
+}
 
 show() {
   running || return 0
@@ -51,6 +84,7 @@ show() {
     lg_open "$(lg_class "$screens")" && break
     sleep 0.2
   done
+  place
 }
 
 LG_CLASS=looking-glass-client
@@ -120,12 +154,13 @@ case ${1:-} in
   --status)
     glyph=$''
     if running; then
-      printf '{"text":"%s","tooltip":"Windows 11: running (workspace 1 / 11)","class":"active"}\n' "$glyph"
+      printf '{"text":"%s","tooltip":"Windows 11: running (workspace 1 / 11). Right click swaps the screens.","class":"active"}\n' "$glyph"
     else
       printf '{"text":"%s","tooltip":"Windows 11: off (click to start)","class":"inactive"}\n' "$glyph"
     fi
     exit 0 ;;
   --show) show; exit 0 ;;
+  --swap) swap; exit 0 ;;
   --shift) shift_ws; exit 0 ;;
   --unshift) unshift_ws; exit 0 ;;
   --watch) watch_vm; exit 0 ;;

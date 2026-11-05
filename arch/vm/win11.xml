@@ -196,8 +196,8 @@
       <audio id="1"/>
     </sound>
     <audio id="1" type="spice"/>
-    <!-- No emulated display: Windows' only screen is a dummy plug (2560x1440) in one of the
-         A1000's outputs, which Looking Glass shows, PIN screen included. Not the Virtual
+    <!-- No emulated display: Windows' two screens are dummy plugs in the A1000's outputs, which
+         Looking Glass shows (the leftmost also shows the PIN screen). Not the Virtual
          Display Driver: its WUDFHost pegged a core and froze the whole desktop for 250-500 ms
          at a time (disabled in Windows, 2026-11-01). To get a
          virt-manager console back (Looking Glass broken), set model type="vga" and re-run

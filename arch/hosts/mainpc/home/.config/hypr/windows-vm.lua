@@ -25,6 +25,15 @@ for screen = 1, MAX_SCREENS do
   o.window("^" .. lg_class(screen) .. "$", { workspace = tostring((screen - 1) * 10 + 1) .. " silent" })
 end
 
+-- Screens 1 and 2 trade workspaces while this file exists (`windows-desktop --swap`).
+local swap_file = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state"))
+  .. "/windows-desktop/swapped"
+local function swapped()
+  local f = io.open(swap_file)
+  if f then f:close() end
+  return f ~= nil
+end
+
 local function find_window(class)
   local windows = hl.get_windows()
   for i = 1, #windows do
@@ -75,6 +84,7 @@ hl.on("workspace.active", function()
   if not ws or ws.id < 1 or ws.id % 10 ~= 1 then return end
   local screen = (ws.id - 1) // 10 + 1
   if screen > MAX_SCREENS then return end
+  if swapped() and screen <= 2 then screen = 3 - screen end
 
   local w = find_window(lg_class(screen))
   if not w then
