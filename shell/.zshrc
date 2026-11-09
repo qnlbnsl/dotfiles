@@ -154,3 +154,10 @@ alias npx='_load_nvm npx'
 
 # Stop profiling
 [ -n "${ZPROF}" ] && zprof
+
+# Added by Unsloth installer
+export PATH="/home/qnlbnsl/.local/share/../bin:$PATH"
+
+# metavr shell completions
+fpath=("/home/qnlbnsl/.metavr/completions" $fpath)
+autoload -Uz compinit && compinit
