@@ -159,6 +159,9 @@ o.bind("SUPER + SHIFT + TAB", "Previous workspace on this monitor", hl.dsp.focus
 o.bind("SUPER + mouse_down", "Next workspace on this monitor", hl.dsp.focus({ workspace = "m+1" }))
 o.bind("SUPER + mouse_up", "Previous workspace on this monitor", hl.dsp.focus({ workspace = "m-1" }))
 
+-- Focus requests from other monitors wait for a 5 s countdown notification.
+require("hypr.focus-requests")
+
 -- Host-specific extras (e.g. mainpc's Windows VM workspaces), when that host provides them.
 local windows_vm = os.getenv("HOME") .. "/.config/hypr/windows-vm.lua"
 local f = io.open(windows_vm)

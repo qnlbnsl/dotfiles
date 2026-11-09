@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Warn before an app pulls focus to another monitor.
+
+Usage: focus-countdown [--dry-run] <window address>
+
+Hyprland calls this (~/.config/hypr/focus-requests.lua) when a window on a
+monitor other than the focused one asks for focus, e.g. a herdr or Claude
+terminal wanting attention. Instead of jumping straight there (and taking the
+mouse along), it shows a notification counting down SECONDS, then focuses the
+window. Click the notification to switch now; dismiss it (or press "Stay") to
+stay put. The countdown also stops if the window closes or you go to it
+yourself. A newer request replaces an older one still counting down.
+
+--dry-run shows the countdown but doesn't move focus (for testing).
+"""
+
+import json
+import os
+import re
+import select
+import signal
+import subprocess
+import sys
+import time
+
+SECONDS = 5
+NOTIFY = [
+    "gdbus", "call", "--session",
+    "--dest", "org.freedesktop.Notifications",
+    "--object-path", "/org/freedesktop/Notifications",
+]
+PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "focus-countdown.pid")
+
+
+def hypr(*args):
+    out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True).stdout
+    return json.loads(out or "null")
+
+
+def find_window(address):
+    for c in hypr("clients") or []:
+        if c["address"] == address:
+            return c
+    return None
+
+
+def monitor_label(monitor_id):
+    """'left monitor' / 'right monitor' on two screens, else the output name."""
+    monitors = sorted(hypr("monitors") or [], key=lambda m: m["x"])
+    for i, m in enumerate(monitors):
+        if m["id"] == monitor_id:
+            if len(monitors) == 2:
+                return ("left", "right")[i] + " monitor"
+            return f"monitor {i + 1} ({m['name']})"
+    return "another monitor"
+
+
+def window_label(c):
+    # Agent terminals share the class org.omarchy.agent; their title is the useful bit.
+    title = (c.get("title") or "").strip()
+    cls = c.get("class") or "An app"
+    if cls == "org.omarchy.agent" or "ghostty" in cls:
+        return title[:60] or cls
+    return cls
+
+
+def notify(replaces, summary, body):
+    out = subprocess.run(
+        NOTIFY + [
+            "--method", "org.freedesktop.Notifications.Notify",
+            "Focus", str(replaces), "", summary, body,
+            '["default", "Switch now", "stay", "Stay here"]',
+            "{'urgency': <byte 1>}", str((SECONDS + 2) * 1000),
+        ],
+        capture_output=True, text=True,
+    ).stdout
+    m = re.search(r"uint32 (\d+)", out)
+    return int(m.group(1)) if m else replaces
+
+
+def close(nid):
+    if nid:
+        subprocess.run(
+            NOTIFY + ["--method", "org.freedesktop.Notifications.CloseNotification", str(nid)],
+            capture_output=True,
+        )
+
+
+def take_over():
+    """Newest request wins: stop a countdown that's still running."""
+    try:
+        with open(PIDFILE) as f:
+            os.kill(int(f.read().strip()), signal.SIGTERM)
+    except (OSError, ValueError):
+        pass
+    with open(PIDFILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
+def main():
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    dry_run = "--dry-run" in sys.argv[1:]
+    if len(args) != 1:
+        sys.exit(__doc__)
+    address = args[0] if args[0].startswith("0x") else "0x" + args[0]
+
+    win = find_window(address)
+    if not win:
+        return
+    take_over()
+
+    nid = 0
+    signal.signal(signal.SIGTERM, lambda *_: (close(nid), sys.exit(0)))
+
+    # Watch for the notification's buttons/dismissal.
+    mon = subprocess.Popen(
+        ["gdbus", "monitor", "--session", "--dest", "org.freedesktop.Notifications",
+         "--object-path", "/org/freedesktop/Notifications"],
+        stdout=subprocess.PIPE, text=True,
+    )
+    try:
+        summary = f"{window_label(win)} wants focus"
+        where = monitor_label(win["monitor"])
+        decision = None  # "switch" | "stay"
+        for remaining in range(SECONDS, 0, -1):
+            nid = notify(nid, summary,
+                         f"Switching to the {where} in {remaining}s. Click to switch now.")
+            deadline = time.monotonic() + 1
+            while decision is None and (left := deadline - time.monotonic()) > 0:
+                ready, _, _ = select.select([mon.stdout], [], [], left)
+                if not ready:
+                    break
+                line = mon.stdout.readline()
+                if f"uint32 {nid}," not in line:
+                    continue
+                if "ActionInvoked" in line:
+                    decision = "stay" if "'stay'" in line else "switch"
+                elif "NotificationClosed" in line and "uint32 2)" in line:
+                    decision = "stay"  # dismissed by the user
+            if decision:
+                break
+            # Gone, or you already went there yourself: nothing to do.
+            win = find_window(address)
+            active = hypr("activewindow") or {}
+            if not win or active.get("address") == address:
+                decision = "stay"
+                break
+
+        close(nid)
+        if decision != "stay" and find_window(address) and not dry_run:
+            subprocess.run(
+                ["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{address}" }})'],
+                capture_output=True,
+            )
+    finally:
+        mon.terminate()
+        try:
+            with open(PIDFILE) as f:
+                if f.read().strip() == str(os.getpid()):
+                    os.unlink(PIDFILE)
+        except OSError:
+            pass
+
+
+if __name__ == "__main__":
+    main()
