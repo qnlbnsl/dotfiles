@@ -75,8 +75,16 @@ To resume, read this file, then start at "Build order".
    - Closing joins the two desktops side by side, each half keeping its layout.
    - A desktop holding the Windows VM's Looking Glass window (1 or 11 while it runs) can't be moved or shifted: `hypr/windows-vm.lua` would pull it back. `ws-layout` refuses with a notification.
    - **TODO (owner, 2026-11-09): stop the jumping while `ws-layout` runs.** Focus (and the cursor) go back and forth during a reorder, because each window inserted on a desktop that's on screen focuses the window it splits, and every insertion moves the cursor (see "What step 1 found"). Ideas, untested: rebuild a shown desktop while it's hidden (only hidden desktops split by cursor, so no focus changes), e.g. show a neighbouring empty desktop on that monitor during the move and switch back at the end; batch all insertions of one desktop into a single `hyprctl --batch` (positions can be computed from the tree instead of read back between steps); hide the cursor during the move.
-   - **Still to do:** dragging a desktop to the other monitor. `ws-layout reorder 7 12` already does it; the overview needs the shared drag from step 3, since each monitor is its own window.
-3. **Cross-monitor window drag**, with the spread showing real layouts. Remove the eighth-of-a-screen zone.
+   - Dragging a desktop to the other monitor: done in step 3.
+3. **Cross-monitor drag and real layouts. Working 2026-11-09, needs polish:**
+   - One `HyprlandFocusGrab` over all monitors' overviews (in `Overview.qml`). With one grab per monitor, handed over when the focused monitor changed, the hand-over took the pointer away from a drag that crossed monitors.
+   - The drag is shared through `GlobalStates.crossDrag` (what is dragged) and `crossDragPos` (cursor in global layout coordinates). Each monitor's widget follows it; the release goes to the source, which asks the widget with a target for its drop plan. Qt's `Drag` is gone.
+   - Windows: a spread window can be dropped on the other monitor's strip (any desktop or New Desktop). A ghost of the window follows the cursor there.
+   - Desktops: dragging a strip thumbnail over the other monitor closes its gap at home and opens one in the other strip, which grows by one while it's there. Dropping runs `ws-layout reorder <from> <to>`. The other monitor gets a ghost built from the desktop's windows (a `ShaderEffectSource` can't cross windows).
+   - The spread places windows by real position at one uniform scale, so a half and two quarters look like that. Floating windows sit on top.
+   - The eighth-of-a-screen zone is gone: drops on a window split it in half.
+   - Tested with the uinput mouse: a window from the left spread to the right strip's New Desktop, and desktop 8 (two stacked windows) to the right monitor's New Desktop (it became 16; mid-drag frames show the left gap closed and the right one open). The owner then tried both directions: they work but need more work (details to come from the owner).
+   - Known: while a window is on the other monitor, its tile in the source spread is off-surface (invisible). The extra thumbnail in the target strip is labelled with its number, not "New Desktop".
 4. **Live rearranging on the normal desktop**, starting with the prototype.
 
 **What step 1 found about Hyprland 0.56.2** (tested)
@@ -95,7 +103,7 @@ To resume, read this file, then start at "Build order".
 
 ## State when this was written
 
-Step 1 (`ws-layout`) is committed and pushed. Step 2 is not committed: `ws-layout` reorder/close, `macos.patch` (saved with `make arch-overview-save`) and this file. Other uncommitted dotfiles changes belong to the owner; leave them alone.
+Steps 1-3 are committed. Step 3 works both ways but needs more work (ask the owner what). Next is step 4, plus the focus-jumping TODO in step 2.
 
 ## Warnings
 

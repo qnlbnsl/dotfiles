@@ -69,10 +69,10 @@ index 0000000..aa1b6b8
 +}
 diff --git c/modules/overview/MissionControlWindows.qml i/modules/overview/MissionControlWindows.qml
 new file mode 100644
-index 0000000..4735ea9
+index 0000000..77feb33
 --- /dev/null
 +++ i/modules/overview/MissionControlWindows.qml
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,239 @@
 +import QtQuick
 +import QtQuick.Effects
 +import Quickshell
@@ -82,8 +82,9 @@ index 0000000..4735ea9
 +import "../../common"
 +import "../../services"
 +
-+// macOS Mission Control: the active desktop's windows spread out below the desktop strip.
-+// Drag a window onto a desktop thumbnail to move it there; click to focus, middle-click to close.
++// macOS Mission Control: the active desktop's windows below the desktop strip, laid out as on
++// the desktop. Drag a window onto a desktop thumbnail (on either monitor) to move it there;
++// click to focus, middle-click to close.
 +Item {
 +    id: root
 +    required property var panelWindow
@@ -110,48 +111,46 @@ index 0000000..4735ea9
 +        return out;
 +    }
 +
-+    // Grid layout: try every column count and keep the one that lets windows be largest.
++    // The desktop as it is, scaled down: every window at its real position and size, so
++    // halves and quarters look like halves and quarters. One scale for the whole desktop.
++    readonly property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
++    readonly property real areaX: (monitorData?.x ?? 0) + (monitorData?.reserved?.[0] ?? 0)
++    readonly property real areaY: (monitorData?.y ?? 0) + (monitorData?.reserved?.[1] ?? 0)
++    readonly property real areaW: Math.max(1, (monitor?.width ?? 1) / (monitor?.scale ?? 1) - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0))
++    readonly property real areaH: Math.max(1, (monitor?.height ?? 1) / (monitor?.scale ?? 1) - (monitorData?.reserved?.[1] ?? 0) - (monitorData?.reserved?.[3] ?? 0))
++    readonly property real spreadScale: Math.min(maxScale, width / areaW, height / areaH)
++
 +    readonly property var layout: {
-+        const n = entries.length;
-+        if (n === 0 || width <= 0 || height <= 0)
-+            return [];
-+
-+        let best = null;
-+        for (let cols = 1; cols <= n; cols++) {
-+            const rows = Math.ceil(n / cols);
-+            const cellW = (width - (cols - 1) * gap) / cols;
-+            const cellH = (height - (rows - 1) * gap - rows * labelHeight) / rows;
-+            if (cellW <= 0 || cellH <= 0)
-+                continue;
-+            let scale = maxScale;
-+            for (const e of entries)
-+                scale = Math.min(scale, cellW / Math.max(1, e.data.size[0]), cellH / Math.max(1, e.data.size[1]));
-+            if (!best || scale > best.scale)
-+                best = { cols: cols, rows: rows, cellW: cellW, cellH: cellH, scale: scale };
-+        }
-+        if (!best)
-+            return [];
-+
-+        const result = [];
-+        const totalH = best.rows * (best.cellH + labelHeight) + (best.rows - 1) * gap;
-+        const top = (height - totalH) / 2;
-+        for (let i = 0; i < n; i++) {
-+            const row = Math.floor(i / best.cols);
-+            const inRow = Math.min(best.cols, n - row * best.cols);
-+            const rowW = inRow * best.cellW + (inRow - 1) * gap;
-+            const col = i % best.cols;
-+            const w = entries[i].data.size[0] * best.scale;
-+            const h = entries[i].data.size[1] * best.scale;
-+            const cellX = (width - rowW) / 2 + col * (best.cellW + gap);
-+            const cellY = top + row * (best.cellH + labelHeight + gap);
-+            result.push({
-+                x: Math.round(cellX + (best.cellW - w) / 2),
-+                y: Math.round(cellY + (best.cellH - h) / 2),
-+                w: Math.round(w),
-+                h: Math.round(h)
++        const out = [];
++        const left = (width - areaW * spreadScale) / 2;
++        const top = (height - areaH * spreadScale) / 2;
++        for (const e of entries) {
++            out.push({
++                x: Math.round(left + (e.data.at[0] - areaX) * spreadScale),
++                y: Math.round(top + (e.data.at[1] - areaY) * spreadScale),
++                w: Math.round(e.data.size[0] * spreadScale),
++                h: Math.round(e.data.size[1] * spreadScale)
 +            });
 +        }
-+        return result;
++        return out;
++    }
++
++    // Report a drag to every monitor's overview (GlobalStates.crossDrag), and drop it on
++    // whichever desktop thumbnail is under the cursor, on either monitor.
++    function reportDrag(item, x, y) {
++        const p = item.mapToItem(null, x, y);
++        GlobalStates.crossDragPos = Qt.point((monitorData?.x ?? 0) + p.x, (monitorData?.y ?? 0) + p.y);
++    }
++    function endDrag(address) {
++        const widgets = (panelWindow.allPanels ?? []).map(p => p.widget).filter(w => w);
++        const target = widgets.find(w => w.draggingTargetWorkspace !== -1);
++        const ws = target?.draggingTargetWorkspace ?? -1;
++        const plan = target ? target.dropPlan(ws) : null;
++        GlobalStates.crossDrag = null;
++        for (const w of widgets)
++            w.clearWindowDrag();
++        if (ws !== -1 && ws !== root.workspaceId && plan)
++            target.dropWindow(address, plan);
 +    }
 +
 +    Repeater {
@@ -178,8 +177,9 @@ index 0000000..4735ea9
 +            y: geo.y
 +            width: geo.w
 +            height: geo.h
-+            z: dragging ? 1000 : 0
++            z: dragging ? 1000 : (entry?.data?.floating ? 1 : 0)
 +            // Shrink while dragging so the window fits onto a desktop thumbnail, like macOS.
++            // Floating windows sit above tiled ones, as on the desktop.
 +            transform: Scale {
 +                origin.x: tile.grabX
 +                origin.y: tile.grabY
@@ -193,10 +193,6 @@ index 0000000..4735ea9
 +            Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            Behavior on dragScale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 +
-+            Drag.active: dragging
-+            Drag.source: tile
-+            Drag.hotSpot.x: grabX
-+            Drag.hotSpot.y: grabY
 +
 +            RectangularShadow {
 +                anchors.fill: preview
@@ -260,28 +256,38 @@ index 0000000..4735ea9
 +
 +                drag.onActiveChanged: {
 +                    if (drag.active) {
-+                        if (root.widget) {
-+                            root.widget.draggingFromWorkspace = root.workspaceId;
-+                            root.widget.draggingTargetSpecialWorkspace = "";
-+                        }
 +                        tile.dragging = true;
++                        // Shrunk size for the other monitor's copy (see Overview.qml).
++                        const shrink = Math.min(1, 220 / Math.max(1, tile.geo.w));
++                        GlobalStates.crossDrag = {
++                            kind: "window", address: tile.address, toplevel: tile.entry?.toplevel,
++                            workspace: root.workspaceId, monitor: root.monitor?.id,
++                            w: tile.geo.w * shrink, h: tile.geo.h * shrink,
++                            grabX: tile.grabX * shrink, grabY: tile.grabY * shrink
++                        };
 +                    }
++                }
++
++                onPositionChanged: mouse => {
++                    if (tile.dragging)
++                        root.reportDrag(dragArea, mouse.x, mouse.y);
 +                }
 +
 +                onReleased: {
 +                    if (!tile.dragging)
 +                        return;
-+                    const target = root.widget?.draggingTargetWorkspace ?? -1;
-+                    const plan = root.widget?.dropPlan(target);
 +                    tile.dragging = false;
-+                    if (root.widget) {
-+                        root.widget.draggingFromWorkspace = -1;
-+                        root.widget.draggingTargetWorkspace = -1;
-+                        root.widget.dropPoint = null;
-+                    }
-+                    if (target !== -1 && target !== root.workspaceId && plan)
-+                        root.widget.dropWindow(tile.address, plan);
-+                    // Snap back into the grid (or out of the way once the window has moved).
++                    root.endDrag(tile.address);
++                    // Snap back into place (or out of the way once the window has moved).
++                    tile.x = Qt.binding(() => tile.geo.x);
++                    tile.y = Qt.binding(() => tile.geo.y);
++                }
++
++                onCanceled: {
++                    if (!tile.dragging)
++                        return;
++                    tile.dragging = false;
++                    GlobalStates.crossDrag = null;
 +                    tile.x = Qt.binding(() => tile.geo.x);
 +                    tile.y = Qt.binding(() => tile.geo.y);
 +                }
@@ -307,10 +313,113 @@ index 0000000..4735ea9
 +    }
 +}
 diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
-index 2fb08bb..f5d4947 100644
+index 2fb08bb..2f829b0 100644
 --- c/modules/overview/Overview.qml
 +++ i/modules/overview/Overview.qml
-@@ -96,6 +96,21 @@ Scope {
+@@ -4,6 +4,7 @@ import QtQuick.Layouts
+ import Quickshell
+ import Quickshell.Io
+ import Quickshell.Wayland
++import Quickshell.Widgets
+ import Quickshell.Hyprland
+ import "../../common"
+ import "../../services"
+@@ -11,6 +12,37 @@ import "."
+ 
+ Scope {
+     id: overviewScope
++
++    // One focus grab over every monitor's overview. With one grab per monitor, handed over when
++    // the focused monitor changed, the hand-over took the pointer away from a drag crossing to
++    // the other monitor (Hyprland's SeatManager::refocusGrab).
++    HyprlandFocusGrab {
++        id: grab
++        windows: overviewVariants.instances
++        active: false
++        onCleared: () => {
++            if ((Config.options.overview.closeOnFocusLoss ?? true) && !active)
++                GlobalStates.overviewOpen = false;
++        }
++    }
++
++    Connections {
++        target: GlobalStates
++        function onOverviewOpenChanged() {
++            if (GlobalStates.overviewOpen)
++                delayedGrabTimer.start();
++            else
++                grab.active = false;
++        }
++    }
++
++    Timer {
++        id: delayedGrabTimer
++        interval: Config.options.hacks.arbitraryRaceConditionDelay
++        repeat: false
++        onTriggered: grab.active = GlobalStates.overviewOpen
++    }
++
+     Variants {
+         id: overviewVariants
+         model: Quickshell.screens
+@@ -38,52 +70,10 @@ Scope {
+                 right: true
+             }
+ 
+-            HyprlandFocusGrab {
+-                id: grab
+-                windows: [root]
+-                property bool canBeActive: root.monitorIsFocused
+-                active: false
+-                onCleared: () => {
+-                    // Only the monitor that owns the grab may close the overview
+-                    if (root.closeOnFocusLoss && !active && canBeActive)
+-                        GlobalStates.overviewOpen = false;
+-                }
+-            }
+-
+-            Connections {
+-                target: GlobalStates
+-                function onOverviewOpenChanged() {
+-                    if (GlobalStates.overviewOpen) {
+-                        delayedGrabTimer.start();
+-                    }
+-                }
+-            }
+-
+-            // Re-evaluate grab ownership when focused monitor changes
+-            Connections {
+-                target: Hyprland
+-                function onFocusedMonitorChanged() {
+-                    if (!GlobalStates.overviewOpen)
+-                        return;
+-                    // Transfer the grab to the newly focused monitor
+-                    if (root.monitorIsFocused && !grab.active) {
+-                        grab.active = true;
+-                    } else if (!root.monitorIsFocused && grab.active) {
+-                        grab.active = false;
+-                    }
+-                }
+-            }
+-
+-            Timer {
+-                id: delayedGrabTimer
+-                interval: Config.options.hacks.arbitraryRaceConditionDelay
+-                repeat: false
+-                onTriggered: {
+-                    if (!grab.canBeActive)
+-                        return;
+-                    grab.active = GlobalStates.overviewOpen;
+-                }
+-            }
++            // Every monitor's overview, and this one's desktop strip, for drags across monitors.
++            readonly property var allPanels: overviewVariants.instances
++            readonly property var widget: overviewLoader.item
++            readonly property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
+ 
+             // Keep the layershell surface full-screen so backdrop/blur are not constrained by content size.
+             implicitWidth: screen.width
+@@ -96,6 +86,21 @@ Scope {
                  focus: GlobalStates.overviewOpen
                  z: 0
  
@@ -332,7 +441,7 @@ index 2fb08bb..f5d4947 100644
                  Rectangle {
                      id: backdropLayer
                      anchors.fill: parent
-@@ -118,6 +133,14 @@ Scope {
+@@ -118,6 +123,14 @@ Scope {
                  }
  
                  Keys.onPressed: event => {
@@ -347,7 +456,7 @@ index 2fb08bb..f5d4947 100644
                      // close: Escape or Enter
                      if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return) {
                          GlobalStates.overviewOpen = false;
-@@ -214,10 +237,50 @@ Scope {
+@@ -214,10 +227,50 @@ Scope {
                  }
              }
  
@@ -399,10 +508,86 @@ index 2fb08bb..f5d4947 100644
                  anchors {
                      horizontalCenter: parent.horizontalCenter
                      top: parent.top
-@@ -233,6 +296,23 @@ Scope {
+@@ -233,6 +286,99 @@ Scope {
                      }
                  }
              }
++
++            // A window dragged in from the other monitor's spread: the source can't draw outside
++            // its own screen, so this monitor draws it under the cursor.
++            Item {
++                id: crossDragGhost
++                readonly property var drag: GlobalStates.crossDrag
++                readonly property real localX: GlobalStates.crossDragPos.x - (root.monitorData?.x ?? 0)
++                readonly property real localY: GlobalStates.crossDragPos.y - (root.monitorData?.y ?? 0)
++                visible: GlobalStates.overviewOpen && drag !== null && drag.kind === "window"
++                    && drag.monitor !== root.monitor?.id
++                    && localX >= 0 && localY >= 0 && localX < root.width && localY < root.height
++                z: 10
++                x: localX - (drag?.grabX ?? 0)
++                y: localY - (drag?.grabY ?? 0)
++                width: drag?.w ?? 0
++                height: drag?.h ?? 0
++
++                ClippingRectangle {
++                    anchors.fill: parent
++                    radius: 10
++                    color: Appearance.colors.colLayer2
++                    border.width: 3
++                    border.color: "#FFFFFF"
++                    ScreencopyView {
++                        anchors.fill: parent
++                        captureSource: crossDragGhost.visible ? crossDragGhost.drag?.toplevel ?? null : null
++                        live: true
++                    }
++                }
++            }
++
++            // A desktop dragged over from the other monitor: its thumbnail, rebuilt from the
++            // windows on it (the source strip's picture can't cross windows).
++            Rectangle {
++                id: crossDeskGhost
++                readonly property var drag: GlobalStates.crossDrag
++                readonly property real localX: GlobalStates.crossDragPos.x - (root.monitorData?.x ?? 0)
++                readonly property real localY: GlobalStates.crossDragPos.y - (root.monitorData?.y ?? 0)
++                visible: GlobalStates.overviewOpen && drag !== null && drag.kind === "desktop"
++                    && drag.monitor !== root.monitor?.id
++                    && localX >= 0 && localY >= 0 && localX < root.width && localY < root.height
++                z: 10
++                x: localX - (drag?.grabX ?? 0)
++                y: localY - (drag?.grabY ?? 0)
++                width: drag?.w ?? 0
++                height: drag?.h ?? 0
++                scale: 1.06
++                radius: Appearance.rounding.screenRounding * (drag?.scale ?? 0.1)
++                color: Appearance.colors.colLayer1
++                border.width: 2
++                border.color: Qt.rgba(1, 1, 1, 0.8)
++                opacity: 0.92
++                clip: true
++
++                Repeater {
++                    model: ScriptModel {
++                        values: {
++                            const d = crossDeskGhost.drag;
++                            if (!crossDeskGhost.visible || !d)
++                                return [];
++                            return HyprlandData.windowList.filter(w => w.workspace?.id === d.workspace);
++                        }
++                    }
++                    delegate: ScreencopyView {
++                        required property var modelData
++                        readonly property var d: crossDeskGhost.drag
++                        x: ((modelData.at?.[0] ?? 0) - (d?.areaX ?? 0)) * (d?.scale ?? 0)
++                        y: ((modelData.at?.[1] ?? 0) - (d?.areaY ?? 0)) * (d?.scale ?? 0)
++                        width: (modelData.size?.[0] ?? 0) * (d?.scale ?? 0)
++                        height: (modelData.size?.[1] ?? 0) * (d?.scale ?? 0)
++                        live: true
++                        captureSource: ToplevelManager.toplevels.values.find(t =>
++                            `0x${t.HyprlandToplevel.address}` === modelData.address) ?? null
++                    }
++                }
++            }
 +
 +            MissionControlWindows {
 +                visible: GlobalStates.overviewOpen
@@ -424,7 +609,7 @@ index 2fb08bb..f5d4947 100644
      }
  
 diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
-index ca82adb..58378e8 100644
+index ca82adb..0ccdd2d 100644
 --- c/modules/overview/OverviewWidget.qml
 +++ i/modules/overview/OverviewWidget.qml
 @@ -2,6 +2,7 @@ import QtQuick
@@ -467,7 +652,7 @@ index ca82adb..58378e8 100644
  
      property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
          ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
-@@ -60,6 +82,203 @@ Item {
+@@ -60,6 +82,293 @@ Item {
  
      property int draggingFromWorkspace: -1
      property int draggingTargetWorkspace: -1
@@ -506,10 +691,11 @@ index ca82adb..58378e8 100644
 +                                : (dropPoint.y - splitTarget.at[1]) / splitTarget.size[1];
 +        return Math.max(0, Math.min(1, t));
 +    }
-+    // Drop zones across the window: 25% | 50% | 50% | 25%. The outer quarters give the new
-+    // window a quarter of the space, the inner ones half; which side follows the cursor.
++    // Drop zones across the window: two halves, the new window takes the half under the cursor.
++    // (A 25% zone at each edge used to give a quarter of the window, which on a half-screen
++    // window made an eighth of the screen by accident.)
 +    readonly property bool splitFirst: splitPosition < 0.5
-+    readonly property real splitShare: (splitPosition < 0.25 || splitPosition >= 0.75) ? 0.25 : 0.5
++    readonly property real splitShare: 0.5
 +    property real defaultSplitRatio: 1
 +
 +    function thumbnailToGlobal(px, py) {
@@ -526,6 +712,56 @@ index ca82adb..58378e8 100644
 +            x: Math.round((monitorData?.x ?? 0) + scenePoint.x),
 +            y: Math.round((monitorData?.y ?? 0) + scenePoint.y)
 +        };
++    }
++
++    // A window dragged in the spread (on any monitor, see GlobalStates.crossDrag): when the
++    // cursor is over one of this strip's thumbnails, that desktop is the drop target.
++    readonly property real monitorLogicalHeight: Math.max(1, ((monitorData?.transform % 2 === 1) ? monitor.width : monitor.height) / monitor.scale)
++    property bool crossTarget: false
++    Connections {
++        target: GlobalStates
++        function onCrossDragPosChanged() {
++            root.followCrossDrag();
++            root.followCrossDesktop();
++        }
++        function onCrossDragChanged() {
++            if (GlobalStates.crossDrag === null) {
++                root.clearWindowDrag();
++                root.deskEndExternal();
++            } else if (GlobalStates.crossDrag.kind === "window") {
++                root.draggingFromWorkspace = GlobalStates.crossDrag.workspace;
++            }
++        }
++    }
++    function followCrossDrag() {
++        const d = GlobalStates.crossDrag;
++        if (!d || d.kind !== "window")
++            return;
++        const gp = GlobalStates.crossDragPos;
++        const mx = monitorData?.x ?? 0;
++        const my = monitorData?.y ?? 0;
++        const onThis = gp.x >= mx && gp.y >= my && gp.x < mx + monitorLogicalWidth && gp.y < my + monitorLogicalHeight;
++        const local = windowSpace.mapFromItem(null, gp.x - mx, gp.y - my);
++        const col = onThis ? deskColumnAt(local.x, local.y) : -1;
++        if (col < 0) {
++            if (crossTarget) {
++                draggingTargetWorkspace = -1;
++                dropPoint = null;
++                crossTarget = false;
++            }
++            return;
++        }
++        crossTarget = true;
++        draggingTargetWorkspace = getWorkspaceInCell(0, col);
++        dropPoint = thumbnailToGlobal(local.x - col * deskPitch, local.y);
++        dropCursor = { x: Math.round(gp.x), y: Math.round(gp.y) };
++    }
++    function clearWindowDrag() {
++        draggingFromWorkspace = -1;
++        draggingTargetWorkspace = -1;
++        dropPoint = null;
++        dropCursor = null;
++        crossTarget = false;
 +    }
 +
 +    // Snapshot of where a drop goes, taken before the drag state is cleared.
@@ -574,7 +810,10 @@ index ca82adb..58378e8 100644
 +    // ws-layout moves the windows with their layouts; the desktop numbers themselves stay put.
 +    property int deskDragFrom: -1                 // desktop being dragged
 +    property int deskDragSlot: -1                 // position it would take (column, after the drop)
-+    readonly property int deskDragTo: deskDragSlot === -1 ? -1 : getWorkspaceInCell(0, deskDragSlot)
++    readonly property int deskDragTo: deskDragSlot < 0 ? -1 : getWorkspaceInCell(0, deskDragSlot)
++    // A desktop dragged in from the other monitor: the gap it would drop into (-1: none). The
++    // strip grows by one thumbnail meanwhile. Its own strip uses deskDragSlot -2: gap closed.
++    property int deskExternalSlot: -1
 +    property bool deskDragHidden: false           // its own thumbnail is hidden (after the ghost copied it)
 +    // After the drop the strip holds the new order while ws-layout moves the windows: windows
 +    // still on their old desktop keep the drag's offset, moved ones are already in place.
@@ -626,14 +865,50 @@ index ca82adb..58378e8 100644
 +    // While a desktop is dragged it leaves the strip and the others close up, opening a gap at
 +    // the slot under the cursor. Visual only: numbers and contents change on the drop.
 +    function deskShift(col) {
-+        if (deskDragFrom === -1 || deskDragSlot === -1 || col < 0)
++        if (col < 0)
++            return 0;
++        if (deskExternalSlot >= 0)
++            return col >= deskExternalSlot ? deskPitch : 0;
++        if (deskDragFrom === -1 || deskDragSlot === -1)
 +            return 0;
 +        const from = getWorkspaceColumn(deskDragFrom);
 +        if (col === from)
 +            return 0;
 +        const index = col < from ? col : col - 1;
-+        const shown = index >= deskDragSlot ? index + 1 : index;
++        const shown = deskDragSlot >= 0 && index >= deskDragSlot ? index + 1 : index;
 +        return (shown - col) * deskPitch;
++    }
++
++    function otherWidgets() {
++        return (panelWindow.allPanels ?? []).map(p => p.widget).filter(w => w && w !== root);
++    }
++    function onThisMonitor(gp) {
++        const mx = monitorData?.x ?? 0;
++        const my = monitorData?.y ?? 0;
++        return gp.x >= mx && gp.y >= my && gp.x < mx + monitorLogicalWidth && gp.y < my + monitorLogicalHeight;
++    }
++    // A desktop from the other monitor over this one: open a gap where it would go.
++    function followCrossDesktop() {
++        const d = GlobalStates.crossDrag;
++        const gp = GlobalStates.crossDragPos;
++        if (!d || d.kind !== "desktop" || d.monitor === root.monitor?.id || !onThisMonitor(gp)) {
++            deskEndExternal();
++            return;
++        }
++        if (deskExternalSlot < 0)
++            deskFrozenCount = Math.min(Config.options.overview.columns, visibleWorkspaceCount + 1);
++        const local = windowSpace.mapFromItem(null, gp.x - (monitorData?.x ?? 0), gp.y - (monitorData?.y ?? 0));
++        // Up to the place of "New Desktop" (the first unused desktop), which then moves right.
++        const used = lastUsedWorkspace - firstWorkspaceInGroup + 1;
++        deskExternalSlot = Math.max(0, Math.min(used, Math.round((local.x - d.grabX) / deskPitch)));
++    }
++    function deskEndExternal() {
++        if (deskExternalSlot < 0)
++            return;
++        deskSnap = true;
++        deskExternalSlot = -1;
++        deskFrozenCount = -1;
++        Qt.callLater(() => deskSnap = false);
 +    }
 +
 +    function deskIsNew(col) {
@@ -671,7 +946,7 @@ index ca82adb..58378e8 100644
      property string draggingTargetSpecialWorkspace: ""
      property int previewRecaptureToken: 0
      property var allWorkspaces: HyprlandData.allWorkspaces
-@@ -266,6 +485,8 @@ Item {
+@@ -266,6 +575,8 @@ Item {
              return "";
          if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
              return trimmed;
@@ -680,7 +955,7 @@ index ca82adb..58378e8 100644
          if (trimmed.startsWith("/"))
              return `file://${trimmed}`;
          return trimmed;
-@@ -378,6 +599,7 @@ Item {
+@@ -378,6 +689,7 @@ Item {
  
      StyledRectangularShadow {
          target: overviewBackground
@@ -688,7 +963,7 @@ index ca82adb..58378e8 100644
      }
      Rectangle { // Background
          id: overviewBackground
-@@ -388,7 +610,7 @@ Item {
+@@ -388,7 +700,7 @@ Item {
          implicitWidth: contentLayout.implicitWidth + padding * 2
          implicitHeight: contentLayout.implicitHeight + padding * 2
          radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
@@ -697,7 +972,7 @@ index ca82adb..58378e8 100644
          color: ColorUtils.applyAlpha(
              root.glassMode
                  ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
-@@ -462,7 +684,19 @@ Item {
+@@ -462,7 +774,19 @@ Item {
                              property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                              property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                              property bool hoveredWhileDragging: false
@@ -717,7 +992,7 @@ index ca82adb..58378e8 100644
                              implicitWidth: root.workspaceImplicitWidth
                              implicitHeight: root.workspaceImplicitHeight
                              color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
-@@ -472,11 +706,57 @@ Item {
+@@ -472,11 +796,58 @@ Item {
                                  root.effectiveWorkspaceOpacity
                              )
                              radius: Appearance.rounding.screenRounding * root.scale
@@ -725,7 +1000,8 @@ index ca82adb..58378e8 100644
 -                            border.color: hoveredWhileDragging
 -                                ? ColorUtils.applyAlpha(hoveredBorderColor, root.glassMode ? root.glassBorderOpacity : 1)
 +                            border.width: 3
-+                            border.color: (hoveredWhileDragging || workspaceArea.containsMouse)
++                            border.color: (hoveredWhileDragging || workspaceArea.containsMouse
++                                    || (root.crossTarget && root.draggingTargetWorkspace === workspaceValue && workspaceValue !== root.draggingFromWorkspace))
 +                                ? ColorUtils.applyAlpha("#FFFFFF", 0.55)
                                  : "transparent"
  
@@ -778,7 +1054,7 @@ index ca82adb..58378e8 100644
                              Image {
                                  id: workspaceWallpaper
                                  visible: workspace.showWallpaper
-@@ -562,6 +842,7 @@ Item {
+@@ -562,6 +933,7 @@ Item {
                              MouseArea {
                                  id: workspaceArea
                                  anchors.fill: parent
@@ -786,7 +1062,7 @@ index ca82adb..58378e8 100644
                                  acceptedButtons: Qt.LeftButton
                                  onClicked: {
                                      if (root.draggingTargetWorkspace === -1) {
-@@ -576,16 +857,22 @@ Item {
+@@ -576,16 +948,22 @@ Item {
                              }
  
                              DropArea {
@@ -811,7 +1087,7 @@ index ca82adb..58378e8 100644
                                  }
                              }
  
-@@ -1026,7 +1313,7 @@ Item {
+@@ -1026,7 +1404,7 @@ Item {
                          return ToplevelManager.toplevels.values.filter((toplevel) => {
                              const address = `0x${toplevel.HyprlandToplevel.address}`
                              var win = windowByAddress[address]
@@ -820,7 +1096,7 @@ index ca82adb..58378e8 100644
                                  return false;
                              const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
                              const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
-@@ -1068,6 +1355,49 @@ Item {
+@@ -1068,6 +1446,49 @@ Item {
                      widgetMonitorData: root.monitorData
                      scale: root.scale
                      availableWorkspaceWidth: root.workspaceImplicitWidth
@@ -870,7 +1146,7 @@ index ca82adb..58378e8 100644
                      availableWorkspaceHeight: root.workspaceImplicitHeight
                      widgetMonitorId: root.monitor.id
                      recaptureToken: root.previewRecaptureToken
-@@ -1094,6 +1424,9 @@ Item {
+@@ -1094,6 +1515,9 @@ Item {
                      z: atInitPosition ? (root.windowZ + index) : root.windowDraggingZ
                      Drag.hotSpot.x: targetWindowWidth / 2
                      Drag.hotSpot.y: targetWindowHeight / 2
@@ -880,7 +1156,7 @@ index ca82adb..58378e8 100644
                      MouseArea {
                          id: dragArea
                          anchors.fill: parent
-@@ -1101,57 +1434,9 @@ Item {
+@@ -1101,57 +1525,9 @@ Item {
                          onEntered: hovered = true
                          onExited: hovered = false
                          acceptedButtons: Qt.LeftButton | Qt.MiddleButton
@@ -941,7 +1217,7 @@ index ca82adb..58378e8 100644
                          onClicked: (event) => {
                              if (!windowData) return;
  
-@@ -1175,13 +1460,131 @@ Item {
+@@ -1175,13 +1551,154 @@ Item {
  
                          StyledToolTip {
                              extraVisibleCondition: false
@@ -982,10 +1258,29 @@ index ca82adb..58378e8 100644
 +                            root.deskDragFrom = root.getWorkspaceInCell(0, col);
 +                            root.deskDragSlot = col;
 +                            deskHideTimer.restart();
++                            // The other monitor's strip follows it too (followCrossDesktop).
++                            GlobalStates.crossDrag = {
++                                kind: "desktop", workspace: root.deskDragFrom, monitor: root.monitor?.id,
++                                w: root.workspaceImplicitWidth, h: root.workspaceImplicitHeight,
++                                grabX: root.deskDragGrab.x, grabY: root.deskDragGrab.y,
++                                areaX: (root.monitorData?.x ?? 0) + (root.monitorData?.reserved?.[0] ?? 0),
++                                areaY: (root.monitorData?.y ?? 0) + (root.monitorData?.reserved?.[1] ?? 0),
++                                scale: root.scale
++                            };
 +                        } else if (root.deskDragFrom !== -1) {
 +                            const from = root.deskDragFrom;
-+                            const to = root.deskDragTo;
++                            let to = root.deskDragTo;
 +                            deskHideTimer.stop();
++                            // Dropped on the other monitor's strip: that's where it goes.
++                            const other = root.otherWidgets().find(w => w.deskExternalSlot >= 0);
++                            if (other)
++                                to = other.getWorkspaceInCell(0, other.deskExternalSlot);
++                            GlobalStates.crossDrag = null;
++                            if (other && to !== -1 && !deskOp.running) {
++                                root.deskDragClear();
++                                root.runDeskOp(["reorder", `${from}`, `${to}`]);
++                                return;
++                            }
 +                            if (to === -1 || to === from || deskOp.running) {
 +                                root.deskDragClear();
 +                                return;
@@ -1004,7 +1299,11 @@ index ca82adb..58378e8 100644
 +                        if (!active || root.deskDragFrom === -1 || root.deskDropping)
 +                            return;
 +                        root.deskDragPos = centroid.position;
-+                        root.deskDragSlot = root.deskDropColumn(centroid.position.x);
++                        const scene = desktopDragLayer.mapToItem(null, centroid.position.x, centroid.position.y);
++                        const gp = Qt.point((root.monitorData?.x ?? 0) + scene.x, (root.monitorData?.y ?? 0) + scene.y);
++                        GlobalStates.crossDragPos = gp;
++                        // Over the other monitor the desktop has left this strip: close the gap.
++                        root.deskDragSlot = root.onThisMonitor(gp) ? root.deskDropColumn(centroid.position.x) : -2;
 +                    }
 +                }
 +
@@ -1018,8 +1317,8 @@ index ca82adb..58378e8 100644
 +
 +            // The gap the dragged desktop would drop into.
 +            Rectangle {
-+                visible: root.deskDragHidden
-+                x: root.deskDragSlot * root.deskPitch
++                visible: (root.deskDragHidden && root.deskDragSlot >= 0) || root.deskExternalSlot >= 0
++                x: (root.deskExternalSlot >= 0 ? root.deskExternalSlot : root.deskDragSlot) * root.deskPitch
 +                z: root.windowDraggingZ
 +                width: root.workspaceImplicitWidth
 +                height: root.workspaceImplicitHeight
@@ -1074,7 +1373,7 @@ index ca82adb..58378e8 100644
              Rectangle { // Focused workspace indicator
                  id: focusedWorkspaceIndicator
                  property int activeWorkspaceRowIndex: root.getWorkspaceRow(root.effectiveActiveWorkspaceId)
-@@ -1192,9 +1595,17 @@ Item {
+@@ -1192,9 +1709,17 @@ Item {
                  z: root.windowDraggingZ - 1
                  width: root.workspaceImplicitWidth
                  height: root.workspaceImplicitHeight
@@ -1093,7 +1392,7 @@ index ca82adb..58378e8 100644
                  border.color: root.activeBorderColor
                  Behavior on x {
                      animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-@@ -1209,6 +1620,45 @@ Item {
+@@ -1209,6 +1734,45 @@ Item {
              id: specialWindowDragLayer
              anchors.fill: parent
              z: root.windowDraggingZ + 1
@@ -1149,3 +1448,16 @@ index 9b15b45..12ca08a 100644
  OverviewWindow 1.0 OverviewWindow.qml
 +MissionControlWindows 1.0 MissionControlWindows.qml
 +GlassSlot 1.0 GlassSlot.qml
+diff --git c/services/GlobalStates.qml i/services/GlobalStates.qml
+index 7644e38..e0f59c9 100644
+--- c/services/GlobalStates.qml
++++ i/services/GlobalStates.qml
+@@ -8,4 +8,8 @@ Singleton {
+     id: root
+     property bool overviewOpen: false
+     property bool superReleaseMightTrigger: true
++    // Mission Control drags that can cross monitors (each monitor's overview is its own window):
++    // { kind: "window", address, toplevel, workspace, w, h, grabX, grabY } while one is dragged.
++    property var crossDrag: null
++    property point crossDragPos: Qt.point(0, 0) // cursor, global layout coordinates
+ }
