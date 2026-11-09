@@ -42,5 +42,5 @@ bindkey "^[l" down-case-word
 # nvm default node on PATH for every zsh, including non-interactive ones.
 [ -r "$HOME/.dotfiles/shell/.node-path.sh" ] && . "$HOME/.dotfiles/shell/.node-path.sh"
 
-# Added by Unsloth installer
-export PATH="/home/qnlbnsl/.local/share/../bin:$PATH"
+# Machine-local environment that stays out of the repo (e.g. PATH entries installers add).
+[ -r "$HOME/.profile_priv_config" ] && . "$HOME/.profile_priv_config"

@@ -61,6 +61,10 @@ plugins=(
   ssh-agent
 )
 
+# metavr completions: on fpath before oh-my-zsh, whose compinit picks them up (one
+# compinit per shell; a second one slows every start).
+[ -d "$HOME/.metavr/completions" ] && fpath=("$HOME/.metavr/completions" $fpath)
+
 # Load oh-my-zsh.
 export ZSH=${HOME}/.oh-my-zsh
 source $ZSH/oh-my-zsh.sh
@@ -154,10 +158,3 @@ alias npx='_load_nvm npx'
 
 # Stop profiling
 [ -n "${ZPROF}" ] && zprof
-
-# Added by Unsloth installer
-export PATH="/home/qnlbnsl/.local/share/../bin:$PATH"
-
-# metavr shell completions
-fpath=("/home/qnlbnsl/.metavr/completions" $fpath)
-autoload -Uz compinit && compinit

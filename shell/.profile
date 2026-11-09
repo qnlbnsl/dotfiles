@@ -29,5 +29,5 @@ fi
 # nvm default node on PATH for bash and sh login shells (agent hooks, IDE tasks).
 [ -r "$HOME/.dotfiles/shell/.node-path.sh" ] && . "$HOME/.dotfiles/shell/.node-path.sh"
 
-# Added by Unsloth installer
-export PATH="/home/qnlbnsl/.local/share/../bin:$PATH"
+# Machine-local environment that stays out of the repo (e.g. PATH entries installers add).
+[ -r "$HOME/.profile_priv_config" ] && . "$HOME/.profile_priv_config"
