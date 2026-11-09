@@ -391,6 +391,10 @@ def remap(plan):
             target = moved.get(shown_ws, shown_ws)
             if strip(target) != strip(shown_ws):
                 target = shown_ws
+            # Its desktop went to the other monitor (or was closed) and nothing took its place:
+            # show the one before it, as macOS does, instead of a blank desktop at the end.
+            if target == shown_ws and plan.get(shown_ws, 0) is None and shown_ws > strip(shown_ws) * 10 + 1:
+                target = shown_ws - 1
             if target != shown_ws or m is focused:
                 cmds.append(f"dispatch hl.dsp.focus({{ workspace = '{target}' }})")
         if cmds:
