@@ -72,6 +72,10 @@ show() {
     lg_open "$class" && continue
     if (( k == 1 )); then
       setsid uwsm-app -- looking-glass-client >/dev/null 2>&1 9>&- &
+      # QEMU's SPICE server gives the audio channels only to the first client that connects,
+      # so screen 1 (the one with audio) must be connected before the others start. Its
+      # window appears right after it connects.
+      for _ in $(seq 25); do lg_open "$class" && break; sleep 0.2; done
     else
       # Extra screens: own shared memory and app id; audio only from screen 1. Clipboard stays
       # on: with several SPICE clients the guest agent answers whichever connected last.
