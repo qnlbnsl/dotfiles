@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""Record a desktop's window layout and rebuild it, for Mission Control (arch/overview).
+
+Hyprland's dwindle layout keeps a binary split tree per workspace but doesn't expose it, and
+moving windows between desktops rebuilds the tree in arrival order, which scrambles layouts.
+This tool works the tree out from window geometry and puts it back:
+
+  ws-layout record <ws>              print the layout of workspace <ws> as JSON
+  ws-layout apply <ws> [file|-]      rebuild that layout on workspace <ws> (JSON from record)
+  ws-layout check <ws>               record, rebuild in place, and compare the geometry
+
+The layout names windows by address, so it can be rebuilt on another workspace or monitor.
+Tiled windows become a split tree (side by side or stacked, with the split ratio); floating
+windows keep their position on the monitor and their size; a fullscreen or maximized window
+gets that state back. Windows that no longer exist are left out. Pinned windows and groups
+aren't handled.
+
+How a rebuild works: the tree is rebuilt top down, one window at a time. Each new window is
+moved onto the workspace with the cursor over the window it should split, which is also
+focused if the workspace is on screen: dwindle splits the focused window there and the window
+under the cursor on a hidden workspace (use_active_for_splits). split_width_multiplier forces
+the direction, force_split = 2 puts the new window second (right or bottom) and
+default_split_ratio sets the share. Those dwindle options, the cursor and the focus are put
+back after.
+"""
+import json
+import os
+import subprocess
+import sys
+
+DEBUG = os.environ.get("WS_LAYOUT_DEBUG")
+
+HOLD = "special:ws-layout"  # where windows wait while their own workspace is rebuilt
+TOLERANCE = 2               # px: windows this close to a cut line still count as separate
+
+
+def hyprctl(*args):
+    return subprocess.run(["hyprctl", *args], capture_output=True, text=True, check=True).stdout
+
+
+def query(what):
+    return json.loads(hyprctl(what, "-j"))
+
+
+def batch(*cmds):
+    hyprctl("--batch", " ; ".join(cmds))
+
+
+def option(name):
+    value = json.loads(hyprctl("getoption", name, "-j"))
+    for kind in ("int", "float", "bool"):
+        if kind in value:
+            return value[kind]
+    raise SystemExit(f"ws-layout: can't read {name}")
+
+
+def lua(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return repr(value)
+
+
+def dwindle(**opts):
+    return "eval hl.config({ dwindle = { %s } })" % ", ".join(f"{k} = {lua(v)}" for k, v in opts.items())
+
+
+def window_cmd(name, address, **args):
+    fields = [f"{k} = {lua(v) if not isinstance(v, str) else repr(v)}" for k, v in args.items()]
+    fields.append(f"window = 'address:{address}'")
+    return f"dispatch hl.dsp.window.{name}({{ {', '.join(fields)} }})"
+
+
+def windows_on(ws):
+    return [c for c in query("clients") if c["workspace"]["id"] == ws and c["mapped"] and not c["pinned"]]
+
+
+def monitor_of(ws):
+    for w in query("workspaces"):
+        if w["id"] == ws:
+            return next(m for m in query("monitors") if m["id"] == w["monitorID"])
+    return None
+
+
+def rect(c, mon):
+    return (c["at"][0] - mon["x"], c["at"][1] - mon["y"], c["size"][0], c["size"][1])
+
+
+# --- geometry -> split tree -------------------------------------------------------------
+
+def cut(items, axis):
+    """First line along axis (0 = x, 1 = y) with every window wholly on one side, or None."""
+    items = sorted(items, key=lambda it: it[1][axis])
+    reach = float("-inf")
+    for i in range(len(items) - 1):
+        reach = max(reach, items[i][1][axis] + items[i][1][axis + 2])
+        if reach <= items[i + 1][1][axis] + TOLERANCE:
+            return items[: i + 1], items[i + 1:], (reach + items[i + 1][1][axis]) / 2
+    return None
+
+
+def split_tree(items, box):
+    """items: [(address, (x, y, w, h))] inside box (x, y, w, h). Returns a node."""
+    if len(items) == 1:
+        return {"window": items[0][0]}
+    for axis, direction in ((0, "h"), (1, "v")):
+        found = cut(items, axis)
+        if not found:
+            continue
+        first, second, line = found
+        start, size = box[axis], box[axis + 2]
+        ratio = min(max(2 * (line - start) / size, 0.1), 1.9)
+        if axis == 0:
+            box_a = (box[0], box[1], line - box[0], box[3])
+            box_b = (line, box[1], box[0] + box[2] - line, box[3])
+        else:
+            box_a = (box[0], box[1], box[2], line - box[1])
+            box_b = (box[0], line, box[2], box[1] + box[3] - line)
+        return {"split": direction, "ratio": round(ratio, 6),
+                "a": split_tree(first, box_a), "b": split_tree(second, box_b)}
+    raise SystemExit("ws-layout: windows overlap (a group?), can't work out the layout")
+
+
+def record(ws):
+    wins = windows_on(ws)
+    mon = monitor_of(ws)
+    if not wins or not mon:
+        return {"workspace": ws, "tree": None, "floating": [], "fullscreen": None}
+
+    fullscreen = None
+    for c in wins:
+        if c["fullscreen"] and not c["floating"]:
+            # Its tiled place is hidden behind the fullscreen geometry: drop out of fullscreen to
+            # read it, then go back.
+            fullscreen = {"window": c["address"], "mode": c["fullscreen"]}
+            batch(window_cmd("fullscreen", c["address"], mode=mode_name(c["fullscreen"]), action="unset"))
+            wins = windows_on(ws)
+            batch(window_cmd("fullscreen", c["address"], mode=mode_name(c["fullscreen"]), action="set"))
+        elif c["fullscreen"]:
+            fullscreen = {"window": c["address"], "mode": c["fullscreen"]}
+
+    tiled = [(c["address"], rect(c, mon)) for c in wins if not c["floating"]]
+    floating = [{"window": c["address"], "at": list(rect(c, mon)[:2]), "size": c["size"]}
+                for c in wins if c["floating"]]
+    tree = None
+    if tiled:
+        xs = [r[0] for _, r in tiled] + [r[0] + r[2] for _, r in tiled]
+        ys = [r[1] for _, r in tiled] + [r[1] + r[3] for _, r in tiled]
+        # Dwindle's root box is the work area; windows sit inside it by their border, and
+        # between windows the gap's midpoint is the split line.
+        b = option("general:border_size")
+        box = (min(xs) - b, min(ys) - b, max(xs) - min(xs) + 2 * b, max(ys) - min(ys) + 2 * b)
+        tree = split_tree(tiled, box)
+    return {"workspace": ws, "monitor": mon["name"], "tree": tree, "floating": floating,
+            "fullscreen": fullscreen, "geometry": {a: r for a, r in tiled}}
+
+
+def mode_name(mode):
+    return "maximized" if mode == 1 else "fullscreen"
+
+
+# --- rebuild ----------------------------------------------------------------------------
+
+def leaves(node):
+    if node is None:
+        return []
+    if "window" in node:
+        return [node["window"]]
+    return leaves(node["a"]) + leaves(node["b"])
+
+
+def prune(node, alive):
+    if node is None:
+        return None
+    if "window" in node:
+        return node if node["window"] in alive else None
+    a, b = prune(node["a"], alive), prune(node["b"], alive)
+    if a and b:
+        return {**node, "a": a, "b": b}
+    return a or b
+
+
+def apply(ws, layout):
+    alive = {c["address"]: c for c in query("clients")}
+    tree = prune(layout.get("tree"), alive)
+    floating = [f for f in layout.get("floating", []) if f["window"] in alive]
+    fullscreen = layout.get("fullscreen")
+    if fullscreen and fullscreen["window"] not in alive:
+        fullscreen = None
+    ours = set(leaves(tree)) | {f["window"] for f in floating}
+
+    strangers = [c for c in windows_on(ws) if not c["floating"] and c["address"] not in ours]
+    if strangers:
+        names = ", ".join(c["class"] for c in strangers)
+        raise SystemExit(f"ws-layout: workspace {ws} has other tiled windows ({names})")
+
+    saved = {k: option(f"dwindle:{k}") for k in
+             ("force_split", "split_width_multiplier", "default_split_ratio", "smart_split",
+              "use_active_for_splits")}
+    cursor = hyprctl("cursorpos").strip().replace(" ", "").split(",")
+    active = json.loads(hyprctl("activewindow", "-j") or "{}").get("address")
+    try:
+        # Take the layout's windows off the target workspace (and out of fullscreen) first:
+        # the tree is rebuilt from an empty workspace.
+        cmds = []
+        for addr in ours:
+            c = alive[addr]
+            if c["fullscreen"]:
+                cmds.append(window_cmd("fullscreen", addr, mode=mode_name(c["fullscreen"]), action="unset"))
+            if c["workspace"]["id"] == ws and not c["floating"]:
+                cmds.append(window_cmd("move", addr, workspace=HOLD, follow=False))
+        if cmds:
+            batch(*cmds)
+
+        if tree:
+            first = leaves(tree)[0]
+            batch(window_cmd("move", first, workspace=str(ws), follow=False))
+            if alive[first]["floating"]:
+                batch(window_cmd("float", first, action="disable"))
+            build(ws, tree)
+
+        mon = monitor_of(ws)
+        for f in floating:
+            addr = f["window"]
+            batch(window_cmd("move", addr, workspace=str(ws), follow=False),
+                  window_cmd("float", addr, action="enable"),
+                  window_cmd("resize", addr, x=f["size"][0], y=f["size"][1]),
+                  window_cmd("move", addr, x=mon["x"] + f["at"][0], y=mon["y"] + f["at"][1]))
+        if fullscreen:
+            batch(window_cmd("fullscreen", fullscreen["window"], mode=mode_name(fullscreen["mode"]), action="set"))
+    finally:
+        cmds = [dwindle(**saved), f"dispatch hl.dsp.cursor.move({{x = {cursor[0]}, y = {cursor[1]}}})"]
+        # Focus moved with the splits when the workspace is on screen; give it back.
+        a = next((c for c in query("clients") if c["address"] == active), None)
+        if a and shown(a["workspace"]["id"]):
+            cmds.append(f"dispatch hl.dsp.focus({{ window = 'address:{active}' }})")
+        batch(*cmds)
+
+
+def shown(ws):
+    return any(m["activeWorkspace"]["id"] == ws for m in query("monitors"))
+
+
+def build(ws, node):
+    """The node's area is held by its first window; split it to place the second subtree."""
+    if "window" in node:
+        return
+    occupant, newcomer = leaves(node)[0], leaves(node["b"])[0]
+    c = next(c for c in query("clients") if c["address"] == occupant)
+    x, y = c["at"][0] + c["size"][0] // 2, c["at"][1] + c["size"][1] // 2
+    cmds = [dwindle(force_split=2, smart_split=False, use_active_for_splits=True,
+                    split_width_multiplier=0.01 if node["split"] == "h" else 100.0,
+                    default_split_ratio=node["ratio"]),
+            f"dispatch hl.dsp.cursor.move({{x = {x}, y = {y}}})"]
+    # On a workspace that's on screen dwindle splits the focused window instead (on a hidden one
+    # the window under the cursor), so focus the one to split.
+    if shown(ws):
+        cmds.append(f"dispatch hl.dsp.focus({{ window = 'address:{occupant}' }})")
+    cmds.append(window_cmd("move", newcomer, workspace=str(ws), follow=False))
+    n = next(c for c in query("clients") if c["address"] == newcomer)
+    if n["floating"]:
+        cmds.append(window_cmd("float", newcomer, action="disable"))
+    batch(*cmds)
+    if DEBUG:
+        print(f"split {occupant} {node['split']} {node['ratio']} at {x},{y} <- {newcomer}", file=sys.stderr)
+        for c in windows_on(ws):
+            print(f"    {c['address']} {c['at']} {c['size']}", file=sys.stderr)
+    build(ws, node["a"])
+    build(ws, node["b"])
+
+
+def compare(before, after):
+    worst = 0
+    for addr, r in before.get("geometry", {}).items():
+        s = after.get("geometry", {}).get(addr)
+        if s is None:
+            print(f"  {addr}: missing after rebuild")
+            worst = 10 ** 6
+            continue
+        d = max(abs(p - q) for p, q in zip(r, s))
+        worst = max(worst, d)
+        print(f"  {addr}: {tuple(r)} -> {tuple(s)}" + ("" if d <= TOLERANCE else f"  (off by {d}px)"))
+    for f in before.get("floating", []):
+        g = next((g for g in after.get("floating", []) if g["window"] == f["window"]), None)
+        print(f"  {f['window']} floating: {f['at']} {f['size']} -> {g and g['at']} {g and g['size']}")
+        if not g or g["at"] != f["at"] or g["size"] != f["size"]:
+            worst = max(worst, 10 ** 6)
+    if before.get("fullscreen") != after.get("fullscreen"):
+        print(f"  fullscreen: {before.get('fullscreen')} -> {after.get('fullscreen')}")
+        worst = max(worst, 10 ** 6)
+    return worst
+
+
+def main(argv):
+    if len(argv) < 3 or argv[1] not in ("record", "apply", "check"):
+        print(__doc__.split("\n\n")[1], file=sys.stderr)
+        return 2
+    ws = int(argv[2])
+    if argv[1] == "record":
+        json.dump(record(ws), sys.stdout, indent=2)
+        print()
+    elif argv[1] == "apply":
+        source = argv[3] if len(argv) > 3 else "-"
+        layout = json.load(sys.stdin if source == "-" else open(source))
+        apply(ws, layout)
+    else:
+        before = record(ws)
+        apply(ws, before)
+        after = record(ws)
+        worst = compare(before, after)
+        print("same layout" if worst <= TOLERANCE else "LAYOUT CHANGED")
+        return 0 if worst <= TOLERANCE else 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
