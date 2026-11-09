@@ -10,6 +10,19 @@
 set -eu
 
 GPU=0000:0d:00.0
+
+# Create the other device files first. With nvidia-modprobe no longer setuid
+# (nvidia-modprobe-nosuid.hook), nothing else makes /dev/nvidiactl, /dev/nvidia-modeset
+# or the RTX 3090's /dev/nvidiaN: the 60-nvidia.rules udev rule skips itself once
+# /dev/nvidia-uvm exists, and it usually does by then. Without them NVIDIA's EGL fails
+# and Hyprland and the SDDM greeter crash at start (black screen, 2026-11-08).
+for i in /proc/driver/nvidia/gpus/*/information; do
+  [ -r "$i" ] || continue
+  m=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' "$i")
+  [ -c "/dev/nvidia$m" ] || /usr/bin/nvidia-modprobe -c "$m"
+done
+[ -c /dev/nvidiactl ] || /usr/bin/nvidia-modprobe -c 255 # minor 255 is /dev/nvidiactl
+/usr/bin/nvidia-modprobe -m -u # nvidia-modeset and nvidia-uvm (no-op if present)
 info=/proc/driver/nvidia/gpus/$GPU/information
 [ -r "$info" ] || exit 0 # not on nvidia right now (e.g. the VM has it)
 
