@@ -66,6 +66,14 @@ o.window({ class = "^wispr-flow$", title = "^(Status|Flow Status Indicator)$" },
   move = { "(monitor_w/2-window_w/2)", "(monitor_h-window_h)" },
 })
 
+-- Unity editor (XWayland): its secondary windows (Project Settings, Preferences, package
+-- and tool windows) open floating wherever the mouse is. Center them on the screen instead.
+-- Its menus and dropdowns are unmanaged popups and keep opening at the mouse, as they should.
+o.window({ class = "^Unityhub-unity-editor", float = true }, { center = true })
+
+-- Resize any window by dragging its edge, like a regular desktop (Super+right-drag still works).
+hl.config({ general = { resize_on_border = true, extend_border_grab_area = 10 } })
+
 -- macOS shape language: rounded "squircle-ish" corners, a soft drop shadow, frosted blur
 -- behind translucent surfaces, and a 1px hairline border (its color comes from the theme:
 -- hyprland_active_border in ~/.config/omarchy/themes/macos-graphite/colors.toml).

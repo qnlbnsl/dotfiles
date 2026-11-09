@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Unity Hub
+Comment=The Official Unity Hub
+GenericName=Unity Hub
+# GDK_SCALE=1: Omarchy sets GDK_SCALE=2 for XWayland apps, and the Unity editor (XWayland,
+# started by the Hub) takes it as a 200% UI on these 125% monitors. The editor's
+# Preferences > UI Scaling page is Windows-only, so on Linux this variable sets the size,
+# in whole steps. Fully quit the Hub and relaunch from here for a change to apply.
+# GDK_DPI_SCALE=1.25 enlarges text only, to match the 125% desktop.
+Exec=env GDK_SCALE=1 GDK_DPI_SCALE=1.25 unityhub %U
+Icon=unityhub
+Type=Application
+StartupNotify=true
+Categories=Development;
+MimeType=x-scheme-handler/unityhub;application/x-unityhub;
