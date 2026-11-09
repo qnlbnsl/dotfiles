@@ -80,6 +80,9 @@ o.bind("SUPER + ALT + T", "Toggle window floating/tiling", hl.dsp.window.float({
 -- Super+Shift+T: reopen the last closed tab (Cmd+Shift+T).
 o.bind("SUPER + SHIFT + T", "Reopen closed tab", function() send_keys("CTRL SHIFT", "T") end)
 
+-- Super+R: refresh (Cmd+R), sent as the app's own Ctrl+R.
+o.bind("SUPER + R", "Refresh", function() send_keys("CTRL", "R") end)
+
 -- macOS-style per-monitor workspaces: every monitor gets its own 1-10.
 -- Monitors are ordered left to right; monitor k owns workspaces k*10+1 .. k*10+10,
 -- so Super+3 on the right monitor is workspace 13. A workspace is created on the
