@@ -8,6 +8,10 @@ This tool works the tree out from window geometry and puts it back:
   ws-layout record <ws>              print the layout of workspace <ws> as JSON
   ws-layout apply <ws> [file|-]      rebuild that layout on workspace <ws> (JSON from record)
   ws-layout check <ws>               record, rebuild in place, and compare the geometry
+  ws-layout reorder <from> <to>      move desktop <from>'s windows to position <to>, shifting
+                                     the desktops in between (also to the other monitor)
+  ws-layout close <ws>               close a desktop: its windows join the desktop to its left
+                                     (right for the first one) and later desktops shift down
 
 The layout names windows by address, so it can be rebuilt on another workspace or monitor.
 Tiled windows become a split tree (side by side or stacked, with the split ratio); floating
@@ -268,6 +272,137 @@ def build(ws, node):
     build(ws, node["b"])
 
 
+# --- reordering and closing desktops -----------------------------------------------------
+# Desktop numbers never change: monitor k (left to right) owns k*10+1 .. k*10+10 (see
+# hypr/bindings.lua). Reordering moves windows, with their layouts, between those numbers.
+
+# Windows that stay on their desktop: the Windows VM's Looking Glass screens belong to
+# workspace 1 / 11 (hypr/windows-vm.lua moves them back there).
+FIXED = ("looking-glass-client",)
+
+
+def strip(ws):
+    return (ws - 1) // 10
+
+
+def last_used(k, occupied):
+    used = [ws for ws in occupied if strip(ws) == k]
+    return max(used) if used else k * 10
+
+
+def occupied_desktops():
+    return {c["workspace"]["id"] for c in query("clients")
+            if c["mapped"] and not c["pinned"] and c["workspace"]["id"] > 0}
+
+
+def reorder_plan(src, dst):
+    """{new desktop: old desktop} for every desktop whose contents change."""
+    occupied = occupied_desktops()
+    s, d = strip(src), strip(dst)
+    if s == d:
+        dst = min(dst, last_used(d, occupied))
+        if src == dst:
+            return {}
+        step = 1 if src < dst else -1
+        plan = {ws: ws + step for ws in range(src, dst, step)}
+        plan[dst] = src
+        return plan
+    # To the other monitor: later desktops on the old one move down, those from <to> on the
+    # new one move up.
+    end_s, end_d = last_used(s, occupied), last_used(d, occupied)
+    dst = min(dst, end_d + 1)
+    if end_d >= d * 10 + 10:
+        raise SystemExit("ws-layout: that monitor has no free desktop")
+    plan = {ws: ws + 1 for ws in range(src, end_s)}
+    plan[end_s] = None  # emptied
+    plan.update({ws + 1: ws for ws in range(dst, end_d + 1)})
+    plan[dst] = src
+    return plan
+
+
+def close_plan(ws):
+    occupied = occupied_desktops()
+    k = strip(ws)
+    end = last_used(k, occupied)
+    first = k * 10 + 1
+    if ws > end:
+        return {}, None  # already empty, at the tail
+    if ws == first and end == first:
+        raise SystemExit("ws-layout: can't close the only desktop")
+    # Joined desktop ends up at ws - 1 (or at ws, when ws was first and ws + 1 joins it).
+    into = ws - 1 if ws > first else ws
+    plan = {w: w + 1 for w in range(ws if ws > first else ws + 1, end)}
+    plan[end] = None
+    plan[into] = ("join", ws - 1, ws) if ws > first else ("join", ws, ws + 1)
+    return plan, into
+
+
+def joined(left, right):
+    """Two desktops' layouts as one: side by side, each half keeping its own layout."""
+    tree = left["tree"] if not right["tree"] else right["tree"] if not left["tree"] else \
+        {"split": "h", "ratio": 1.0, "a": left["tree"], "b": right["tree"]}
+    return {"tree": tree, "floating": left["floating"] + right["floating"],
+            "fullscreen": left["fullscreen"] or right["fullscreen"]}
+
+
+def remap(plan):
+    """Rebuild desktops from a plan {new desktop: old desktop | None | ("join", a, b)}."""
+    if not plan:
+        return
+    sources = set()
+    for new, old in plan.items():
+        sources.add(new)
+        if isinstance(old, int):
+            sources.add(old)
+        elif old:
+            sources.update(old[1:])
+    clients = query("clients")
+    fixed = [c for c in clients if c["workspace"]["id"] in sources and c["class"].startswith(FIXED)]
+    if fixed:
+        raise SystemExit(f"ws-layout: desktop {fixed[0]['workspace']['id']} has the Windows VM; it stays put")
+
+    layouts = {ws: record(ws) for ws in sorted(sources)}
+    home = {c["address"]: c["workspace"]["id"] for c in clients if c["workspace"]["id"] in sources}
+    monitors = query("monitors")
+    focused = next(m for m in monitors if m["focused"])
+    try:
+        # Everything waits in HOLD, out of fullscreen, while the desktops are rebuilt.
+        cmds = []
+        for c in clients:
+            if c["workspace"]["id"] in sources and c["mapped"] and not c["pinned"]:
+                if c["fullscreen"]:
+                    cmds.append(window_cmd("fullscreen", c["address"], mode=mode_name(c["fullscreen"]), action="unset"))
+                cmds.append(window_cmd("move", c["address"], workspace=HOLD, follow=False))
+        if cmds:
+            batch(*cmds)
+        for new, old in sorted(plan.items()):
+            if old is None:
+                continue
+            if isinstance(old, int):
+                apply(new, layouts[old])
+            else:
+                apply(new, joined(layouts[old[1]], layouts[old[2]]))
+        # A monitor showing a desktop that moved along its strip follows it; the focused
+        # monitor goes last so it keeps the focus.
+        moved = {old: new for new, old in plan.items() if isinstance(old, int)}
+        cmds = []
+        for m in sorted(monitors, key=lambda m: m["focused"]):
+            shown_ws = m["activeWorkspace"]["id"]
+            target = moved.get(shown_ws, shown_ws)
+            if strip(target) != strip(shown_ws):
+                target = shown_ws
+            if target != shown_ws or m is focused:
+                cmds.append(f"dispatch hl.dsp.focus({{ workspace = '{target}' }})")
+        if cmds:
+            batch(*cmds)
+    finally:
+        # Anything left in HOLD (a failed rebuild) goes back where it was.
+        cmds = [window_cmd("move", c["address"], workspace=str(home.get(c["address"], 1)), follow=False)
+                for c in query("clients") if c["workspace"]["name"] == HOLD]
+        if cmds:
+            batch(*cmds)
+
+
 def compare(before, after):
     worst = 0
     for addr, r in before.get("geometry", {}).items():
@@ -291,11 +426,15 @@ def compare(before, after):
 
 
 def main(argv):
-    if len(argv) < 3 or argv[1] not in ("record", "apply", "check"):
+    if len(argv) < 3 or argv[1] not in ("record", "apply", "check", "reorder", "close"):
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return 2
     ws = int(argv[2])
-    if argv[1] == "record":
+    if argv[1] == "reorder":
+        remap(reorder_plan(ws, int(argv[3])))
+    elif argv[1] == "close":
+        remap(close_plan(ws)[0])
+    elif argv[1] == "record":
         json.dump(record(ws), sys.stdout, indent=2)
         print()
     elif argv[1] == "apply":

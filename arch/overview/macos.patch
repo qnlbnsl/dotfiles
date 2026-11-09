@@ -307,7 +307,7 @@ index 0000000..4735ea9
 +    }
 +}
 diff --git c/modules/overview/Overview.qml i/modules/overview/Overview.qml
-index 2fb08bb..fe1adf4 100644
+index 2fb08bb..f5d4947 100644
 --- c/modules/overview/Overview.qml
 +++ i/modules/overview/Overview.qml
 @@ -96,6 +96,21 @@ Scope {
@@ -347,7 +347,7 @@ index 2fb08bb..fe1adf4 100644
                      // close: Escape or Enter
                      if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return) {
                          GlobalStates.overviewOpen = false;
-@@ -214,6 +237,45 @@ Scope {
+@@ -214,10 +237,50 @@ Scope {
                  }
              }
  
@@ -393,7 +393,13 @@ index 2fb08bb..fe1adf4 100644
              ColumnLayout {
                  id: columnLayout
                  visible: GlobalStates.overviewOpen
-@@ -233,6 +295,23 @@ Scope {
+-                z: 1
++                // Above the spread while a desktop is dragged, so its ghost isn't hidden by it.
++                z: (overviewLoader.item?.deskDragFrom ?? -1) !== -1 ? 3 : 1
+                 anchors {
+                     horizontalCenter: parent.horizontalCenter
+                     top: parent.top
+@@ -233,6 +296,23 @@ Scope {
                      }
                  }
              }
@@ -418,7 +424,7 @@ index 2fb08bb..fe1adf4 100644
      }
  
 diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
-index ca82adb..04e408d 100644
+index ca82adb..58378e8 100644
 --- c/modules/overview/OverviewWidget.qml
 +++ i/modules/overview/OverviewWidget.qml
 @@ -2,6 +2,7 @@ import QtQuick
@@ -429,7 +435,7 @@ index ca82adb..04e408d 100644
  import Quickshell.Wayland
  import Quickshell.Hyprland
  import "../../common"
-@@ -27,8 +28,25 @@ Item {
+@@ -27,8 +28,29 @@ Item {
      property var windowAddresses: HyprlandData.addresses
      property var workspaceIds: HyprlandData.workspaceIds
      property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
@@ -453,11 +459,15 @@ index ca82adb..04e408d 100644
 +        }
 +        return maxId;
 +    }
-+    readonly property int visibleWorkspaceCount: Math.max(1, Math.min(Config.options.overview.columns, lastUsedWorkspace - firstWorkspaceInGroup + 2))
++    // Held while a desktop is dragged and dropped: ws-layout briefly empties desktops while it
++    // moves windows, which would otherwise shrink the strip mid-move.
++    property int deskFrozenCount: -1
++    readonly property int visibleWorkspaceCount: deskFrozenCount > 0 ? deskFrozenCount
++        : Math.max(1, Math.min(Config.options.overview.columns, lastUsedWorkspace - firstWorkspaceInGroup + 2))
  
      property real workspaceImplicitWidth: Math.round((monitorData?.transform % 2 === 1) ?
          ((monitor.height / monitor.scale - (monitorData?.reserved?.[0] ?? 0) - (monitorData?.reserved?.[2] ?? 0)) * root.scale) :
-@@ -60,6 +78,119 @@ Item {
+@@ -60,6 +82,203 @@ Item {
  
      property int draggingFromWorkspace: -1
      property int draggingTargetWorkspace: -1
@@ -560,6 +570,90 @@ index ca82adb..04e408d 100644
 +        Quickshell.execDetached(["hyprctl", "--batch", cmds.join(" ; ")]);
 +    }
 +
++    // macOS Spaces bar: drag a desktop thumbnail to move the desktop, ✕ on hover closes it.
++    // ws-layout moves the windows with their layouts; the desktop numbers themselves stay put.
++    property int deskDragFrom: -1                 // desktop being dragged
++    property int deskDragSlot: -1                 // position it would take (column, after the drop)
++    readonly property int deskDragTo: deskDragSlot === -1 ? -1 : getWorkspaceInCell(0, deskDragSlot)
++    property bool deskDragHidden: false           // its own thumbnail is hidden (after the ghost copied it)
++    // After the drop the strip holds the new order while ws-layout moves the windows: windows
++    // still on their old desktop keep the drag's offset, moved ones are already in place.
++    property bool deskDropping: false
++    property var deskDropHome: ({})               // address -> desktop at the drop
++    property bool deskSnap: false                 // clearing the drag: no slide back
++
++    function deskWindowShift(win) {
++        const ws = win?.workspace?.id ?? -1;
++        if (deskDropping && deskDropHome[win?.address] !== ws)
++            return 0;
++        return deskShift(getWorkspaceColumn(ws));
++    }
++    function deskWindowHidden(win) {
++        const ws = win?.workspace?.id ?? -1;
++        return deskDragHidden && ws === deskDragFrom && (!deskDropping || deskDropHome[win?.address] === ws);
++    }
++    function deskDragClear() {
++        deskSnap = true;
++        deskDragFrom = -1;
++        deskDragSlot = -1;
++        deskDragHidden = false;
++        deskDropping = false;
++        deskDropHome = ({});
++        deskFrozenCount = -1;
++        Qt.callLater(() => deskSnap = false);
++    }
++    property point deskDragPos: Qt.point(0, 0)    // cursor, in windowSpace coordinates
++    property point deskDragGrab: Qt.point(0, 0)   // where the thumbnail was grabbed
++    property int deskHoverColumn: -1
++    readonly property real deskPitch: workspaceImplicitWidth + workspaceSpacing
++
++    function deskColumnAt(x, y) {
++        if (y < 0 || y > workspaceImplicitHeight || x < 0)
++            return -1;
++        const col = Math.floor(x / deskPitch);
++        if (col >= visibleWorkspaceCount || x - col * deskPitch > workspaceImplicitWidth)
++            return -1;
++        return col;
++    }
++
++    // Where the dragged desktop would go: the slot nearest the ghost's left edge, among the
++    // desktops in use ("New Desktop" stays last).
++    function deskDropColumn(x) {
++        const last = deskIsNew(visibleWorkspaceCount - 1) ? visibleWorkspaceCount - 2 : visibleWorkspaceCount - 1;
++        return Math.max(0, Math.min(last, Math.round((x - deskDragGrab.x) / deskPitch)));
++    }
++
++    // While a desktop is dragged it leaves the strip and the others close up, opening a gap at
++    // the slot under the cursor. Visual only: numbers and contents change on the drop.
++    function deskShift(col) {
++        if (deskDragFrom === -1 || deskDragSlot === -1 || col < 0)
++            return 0;
++        const from = getWorkspaceColumn(deskDragFrom);
++        if (col === from)
++            return 0;
++        const index = col < from ? col : col - 1;
++        const shown = index >= deskDragSlot ? index + 1 : index;
++        return (shown - col) * deskPitch;
++    }
++
++    function deskIsNew(col) {
++        const ws = getWorkspaceInCell(0, col);
++        return col === visibleWorkspaceCount - 1 && ws !== effectiveActiveWorkspaceId && !workspaceHasWindows(ws);
++    }
++
++    // ws-layout's errors (e.g. "desktop 1 has the Windows VM") become a notification.
++    Process {
++        id: deskOp
++        onRunningChanged: if (!running && root.deskDropping) root.deskDragClear()
++    }
++    function runDeskOp(args) {
++        if (deskOp.running)
++            return;
++        deskOp.command = ["sh", "-c", 'out=$("$0" "$@" 2>&1) || notify-send -a "Mission Control" "Mission Control" "${out#ws-layout: }"',
++                          `${Quickshell.env("HOME")}/.local/bin/ws-layout`].concat(args);
++        deskOp.running = true;
++    }
++
 +    // Remember the configured split ratio so dropWindow() can put it back.
 +    Process {
 +        running: true
@@ -577,7 +671,7 @@ index ca82adb..04e408d 100644
      property string draggingTargetSpecialWorkspace: ""
      property int previewRecaptureToken: 0
      property var allWorkspaces: HyprlandData.allWorkspaces
-@@ -266,6 +397,8 @@ Item {
+@@ -266,6 +485,8 @@ Item {
              return "";
          if (trimmed.startsWith("file:/") || trimmed.startsWith("qrc:/") || trimmed.startsWith("image://") || trimmed.startsWith("http://") || trimmed.startsWith("https://"))
              return trimmed;
@@ -586,7 +680,7 @@ index ca82adb..04e408d 100644
          if (trimmed.startsWith("/"))
              return `file://${trimmed}`;
          return trimmed;
-@@ -378,6 +511,7 @@ Item {
+@@ -378,6 +599,7 @@ Item {
  
      StyledRectangularShadow {
          target: overviewBackground
@@ -594,7 +688,7 @@ index ca82adb..04e408d 100644
      }
      Rectangle { // Background
          id: overviewBackground
-@@ -388,7 +522,7 @@ Item {
+@@ -388,7 +610,7 @@ Item {
          implicitWidth: contentLayout.implicitWidth + padding * 2
          implicitHeight: contentLayout.implicitHeight + padding * 2
          radius: Appearance.rounding.screenRounding * root.scale + (Appearance.rounding.screenRounding !== 0 ? padding : 0)
@@ -603,7 +697,7 @@ index ca82adb..04e408d 100644
          color: ColorUtils.applyAlpha(
              root.glassMode
                  ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colLayer1, 0.78 - root.glassTintStrength * 0.35)
-@@ -462,7 +596,11 @@ Item {
+@@ -462,7 +684,19 @@ Item {
                              property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                              property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                              property bool hoveredWhileDragging: false
@@ -612,10 +706,18 @@ index ca82adb..04e408d 100644
 +                                && !root.workspaceHasWindows(workspaceValue)
  
 +                            visible: colIndex < root.visibleWorkspaceCount
++                            opacity: root.deskDragHidden && workspaceValue === root.deskDragFrom ? 0 : 1
++                            transform: Translate {
++                                x: root.deskShift(workspace.colIndex)
++                                Behavior on x {
++                                    enabled: !root.deskSnap
++                                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                                }
++                            }
                              implicitWidth: root.workspaceImplicitWidth
                              implicitHeight: root.workspaceImplicitHeight
                              color: showWallpaper ? "transparent" : ColorUtils.applyAlpha(
-@@ -472,11 +610,57 @@ Item {
+@@ -472,11 +706,57 @@ Item {
                                  root.effectiveWorkspaceOpacity
                              )
                              radius: Appearance.rounding.screenRounding * root.scale
@@ -676,7 +778,7 @@ index ca82adb..04e408d 100644
                              Image {
                                  id: workspaceWallpaper
                                  visible: workspace.showWallpaper
-@@ -562,6 +746,7 @@ Item {
+@@ -562,6 +842,7 @@ Item {
                              MouseArea {
                                  id: workspaceArea
                                  anchors.fill: parent
@@ -684,7 +786,7 @@ index ca82adb..04e408d 100644
                                  acceptedButtons: Qt.LeftButton
                                  onClicked: {
                                      if (root.draggingTargetWorkspace === -1) {
-@@ -576,16 +761,22 @@ Item {
+@@ -576,16 +857,22 @@ Item {
                              }
  
                              DropArea {
@@ -709,7 +811,7 @@ index ca82adb..04e408d 100644
                                  }
                              }
  
-@@ -1026,7 +1217,7 @@ Item {
+@@ -1026,7 +1313,7 @@ Item {
                          return ToplevelManager.toplevels.values.filter((toplevel) => {
                              const address = `0x${toplevel.HyprlandToplevel.address}`
                              var win = windowByAddress[address]
@@ -718,7 +820,7 @@ index ca82adb..04e408d 100644
                                  return false;
                              const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
                              const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
-@@ -1068,6 +1259,37 @@ Item {
+@@ -1068,6 +1355,49 @@ Item {
                      widgetMonitorData: root.monitorData
                      scale: root.scale
                      availableWorkspaceWidth: root.workspaceImplicitWidth
@@ -735,12 +837,24 @@ index ca82adb..04e408d 100644
 +                    width: fullWidth - slotWidth
 +                    height: fullHeight - slotHeight
 +                    // When the new window takes the left/top, this one slides over to make room.
-+                    transform: Translate {
-+                        x: window.splitFirst ? window.slotWidth : 0
-+                        y: window.splitFirst ? window.slotHeight : 0
-+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-+                        Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-+                    }
++                    transform: [
++                        Translate {
++                            x: window.splitFirst ? window.slotWidth : 0
++                            y: window.splitFirst ? window.slotHeight : 0
++                            Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                            Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++                        },
++                        Translate { // a desktop drag in the strip moves the desktops aside
++                            x: root.deskWindowShift(window.windowData)
++                            Behavior on x {
++                                enabled: !root.deskSnap
++                                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                            }
++                        }
++                    ]
++                    suspendPositionAnimation: root.deskDropping || root.deskSnap
++                    opacity: root.deskWindowHidden(windowData) ? 0
++                        : (windowData?.monitor ?? -1) == root.monitor.id ? 1 : Config.options.windowPreview.inactiveMonitorOpacity
 +
 +                    GlassSlot { // "+" slot where the dropped window will land
 +                        opacity: window.splitPreview ? 1 : 0
@@ -756,29 +870,222 @@ index ca82adb..04e408d 100644
                      availableWorkspaceHeight: root.workspaceImplicitHeight
                      widgetMonitorId: root.monitor.id
                      recaptureToken: root.previewRecaptureToken
-@@ -1113,6 +1335,7 @@ Item {
-                         }
-                         onReleased: {
-                             const targetWorkspace = root.draggingTargetWorkspace
-+                            const plan = root.dropPlan(targetWorkspace)
-                             const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
-                             window.pressed = false
-                             window.Drag.active = false
-@@ -1140,11 +1363,7 @@ Item {
-                             }
-                             else if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
-                                 //INFO: From normal TO normal
+@@ -1094,6 +1424,9 @@ Item {
+                     z: atInitPosition ? (root.windowZ + index) : root.windowDraggingZ
+                     Drag.hotSpot.x: targetWindowWidth / 2
+                     Drag.hotSpot.y: targetWindowHeight / 2
++                    // Click focuses the window, middle click closes it. Dragging moves the whole
++                    // desktop (desktopDragLayer below), like the macOS Spaces bar; single windows
++                    // are dragged in the spread underneath (MissionControlWindows).
+                     MouseArea {
+                         id: dragArea
+                         anchors.fill: parent
+@@ -1101,57 +1434,9 @@ Item {
+                         onEntered: hovered = true
+                         onExited: hovered = false
+                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+-                        drag.target: parent
+-                        onPressed: (mouse) => {
+-                            root.draggingFromWorkspace = windowData?.workspace.id
+-                            root.draggingTargetSpecialWorkspace = ""
+-                            window.pressed = true
+-                            window.Drag.active = true
+-                            window.Drag.source = window
+-                            window.Drag.hotSpot.x = mouse.x
+-                            window.Drag.hotSpot.y = mouse.y
+-                        }
+-                        onReleased: {
+-                            const targetWorkspace = root.draggingTargetWorkspace
+-                            const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
+-                            window.pressed = false
+-                            window.Drag.active = false
+-                            root.draggingFromWorkspace = -1
+-                            root.draggingTargetWorkspace = -1
+-                            root.draggingTargetSpecialWorkspace = ""
+-                            if (targetSpecialWorkspace === root.createSpecialWorkspaceTarget) {
+-                                const createdName = root.nextSpecialWorkspaceName()
+-                                //INFO: From normal TO special
+-                                if (Hyprland.usingLua) {
+-                                    Hyprland.dispatch(`hl.dsp.window.move({workspace = 'special:${createdName}', follow = false, window = 'address:${window.windowData?.address}'})`);
+-                                } else {
+-                                    Hyprland.dispatch(`movetoworkspacesilent special:${createdName}, address:${window.windowData?.address}`)
+-                                }
+-                                updateWindowPosition.restart()
+-                            }
+-                            else if (targetSpecialWorkspace && targetSpecialWorkspace !== root.specialWorkspaceName(windowData)) {
+-                                // Idk
+-                                if (Hyprland.usingLua) {
+-                                    Hyprland.dispatch(`hl.dsp.window.move({workspace = 'special:${targetSpecialWorkspace}', follow = false, window = 'address:${window.windowData?.address}'})`);
+-                                } else {
+-                                    Hyprland.dispatch(`movetoworkspacesilent special:${targetSpecialWorkspace}, address:${window.windowData?.address}`)
+-                                }
+-                                updateWindowPosition.restart()
+-                            }
+-                            else if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
+-                                //INFO: From normal TO normal
 -                                if (Hyprland.usingLua) {
 -                                    Hyprland.dispatch(`hl.dsp.window.move({workspace = '${targetWorkspace}', follow = false, window = 'address:${window.windowData?.address}'})`);
 -                                } else {
 -                                    Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
 -                                }
-+                                root.dropWindow(window.windowData?.address, plan)
-                                 updateWindowPosition.restart()
-                             }
-                             else {
-@@ -1194,7 +1413,7 @@ Item {
+-                                updateWindowPosition.restart()
+-                            }
+-                            else {
+-                                window.x = window.initX
+-                                window.y = window.initY
+-                            }
+-                        }
++                        onPressed: window.pressed = true
++                        onReleased: window.pressed = false
++                        onCanceled: window.pressed = false
+                         onClicked: (event) => {
+                             if (!windowData) return;
+ 
+@@ -1175,13 +1460,131 @@ Item {
+ 
+                         StyledToolTip {
+                             extraVisibleCondition: false
+-                            alternativeVisibleCondition: dragArea.containsMouse && !window.Drag.active
++                            alternativeVisibleCondition: dragArea.containsMouse && root.deskDragFrom === -1
+                             text: `${windowData?.title ?? "Unknown"}\n[${windowData?.class ?? "unknown"}] ${windowData?.xwayland ? "[XWayland] " : ""}`
+                         }
+                     }
+                 }
+             }
+ 
++            // Above the thumbnails' windows so a drag that starts on a window still moves the
++            // desktop: the handlers only watch until the drag passes the threshold, then take over.
++            Item {
++                id: desktopDragLayer
++                anchors.fill: parent
++                z: root.windowDraggingZ + 2
++
++                HoverHandler {
++                    onPointChanged: root.deskHoverColumn = hovered ? root.deskColumnAt(point.position.x, point.position.y) : -1
++                    onHoveredChanged: if (!hovered) root.deskHoverColumn = -1
++                }
++
++                DragHandler {
++                    target: null
++                    acceptedButtons: Qt.LeftButton
++                    dragThreshold: 8
++                    grabPermissions: PointerHandler.CanTakeOverFromAnything
++                    onActiveChanged: {
++                        if (active) {
++                            const p = centroid.pressPosition;
++                            const col = root.deskColumnAt(p.x, p.y);
++                            if (col < 0 || root.deskIsNew(col))
++                                return;
++                            root.deskDragGrab = Qt.point(p.x - col * root.deskPitch, p.y);
++                            root.deskDragPos = centroid.position;
++                            root.deskFrozenCount = root.visibleWorkspaceCount;
++                            root.deskDragFrom = root.getWorkspaceInCell(0, col);
++                            root.deskDragSlot = col;
++                            deskHideTimer.restart();
++                        } else if (root.deskDragFrom !== -1) {
++                            const from = root.deskDragFrom;
++                            const to = root.deskDragTo;
++                            deskHideTimer.stop();
++                            if (to === -1 || to === from || deskOp.running) {
++                                root.deskDragClear();
++                                return;
++                            }
++                            // The ghost settles into the gap and stays until the windows are moved.
++                            const home = {};
++                            for (const addr in root.windowByAddress)
++                                home[addr] = root.windowByAddress[addr]?.workspace?.id;
++                            root.deskDropHome = home;
++                            root.deskDragHidden = true;
++                            root.deskDropping = true;
++                            root.runDeskOp(["reorder", `${from}`, `${to}`]);
++                        }
++                    }
++                    onCentroidChanged: {
++                        if (!active || root.deskDragFrom === -1 || root.deskDropping)
++                            return;
++                        root.deskDragPos = centroid.position;
++                        root.deskDragSlot = root.deskDropColumn(centroid.position.x);
++                    }
++                }
++
++                // The ghost copies the thumbnail on its first frame; hide the real one after that.
++                Timer {
++                    id: deskHideTimer
++                    interval: 60
++                    onTriggered: root.deskDragHidden = root.deskDragFrom !== -1
++                }
++            }
++
++            // The gap the dragged desktop would drop into.
++            Rectangle {
++                visible: root.deskDragHidden
++                x: root.deskDragSlot * root.deskPitch
++                z: root.windowDraggingZ
++                width: root.workspaceImplicitWidth
++                height: root.workspaceImplicitHeight
++                radius: Appearance.rounding.screenRounding * root.scale
++                color: ColorUtils.applyAlpha("#FFFFFF", 0.06)
++                border.width: 1
++                border.color: ColorUtils.applyAlpha("#FFFFFF", 0.25)
++                Behavior on x {
++                    enabled: !root.deskSnap
++                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                }
++            }
++
++            // ✕ in the corner of the hovered desktop: its windows join the desktop to its left
++            // (right for the first) and the later desktops move down one.
++            Repeater {
++                model: root.visibleWorkspaceCount
++                Rectangle {
++                    id: closeDesktop
++                    required property int index
++                    readonly property int workspaceId: root.getWorkspaceInCell(0, index)
++                    visible: root.deskDragFrom === -1 && !deskOp.running
++                        && (root.deskHoverColumn === index || closeArea.containsMouse)
++                        && !root.deskIsNew(index) && root.visibleWorkspaceCount > 2
++                    x: index * root.deskPitch - width / 3
++                    y: -height / 3
++                    z: root.windowDraggingZ + 3
++                    width: 22
++                    height: 22
++                    radius: width / 2
++                    color: closeArea.containsMouse ? "#E0E0E0" : "#B8B8B8"
++                    border.width: 1
++                    border.color: "#59000000"
++
++                    Text {
++                        anchors.centerIn: parent
++                        text: "✕"
++                        color: "#262626"
++                        font.pixelSize: 12
++                        font.weight: Font.DemiBold
++                    }
++
++                    MouseArea {
++                        id: closeArea
++                        anchors.fill: parent
++                        hoverEnabled: true
++                        onClicked: root.runDeskOp(["close", `${closeDesktop.workspaceId}`])
++                    }
++                }
++            }
++
+             Rectangle { // Focused workspace indicator
+                 id: focusedWorkspaceIndicator
+                 property int activeWorkspaceRowIndex: root.getWorkspaceRow(root.effectiveActiveWorkspaceId)
+@@ -1192,9 +1595,17 @@ Item {
+                 z: root.windowDraggingZ - 1
+                 width: root.workspaceImplicitWidth
                  height: root.workspaceImplicitHeight
++                opacity: root.deskDragHidden && root.effectiveActiveWorkspaceId === root.deskDragFrom ? 0 : 1
++                transform: Translate {
++                    x: root.deskShift(focusedWorkspaceIndicator.activeWorkspaceColIndex)
++                    Behavior on x {
++                        enabled: !root.deskSnap
++                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                    }
++                }
                  color: "transparent"
                  radius: Appearance.rounding.screenRounding * root.scale
 -                border.width: 2
@@ -786,6 +1093,52 @@ index ca82adb..04e408d 100644
                  border.color: root.activeBorderColor
                  Behavior on x {
                      animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+@@ -1209,6 +1620,45 @@ Item {
+             id: specialWindowDragLayer
+             anchors.fill: parent
+             z: root.windowDraggingZ + 1
++
++            Rectangle {
++                id: desktopGhost
++                readonly property point at: root.deskDragFrom === -1 ? Qt.point(0, 0)
++                    : root.deskDropping ? windowSpace.mapToItem(specialWindowDragLayer, root.deskDragSlot * root.deskPitch, 0)
++                    : windowSpace.mapToItem(specialWindowDragLayer, root.deskDragPos.x - root.deskDragGrab.x, root.deskDragPos.y - root.deskDragGrab.y)
++                visible: root.deskDragFrom !== -1
++                x: at.x
++                y: at.y
++                scale: root.deskDropping ? 1 : 1.06
++                Behavior on x {
++                    enabled: root.deskDropping
++                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                }
++                Behavior on y {
++                    enabled: root.deskDropping
++                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                }
++                Behavior on scale {
++                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
++                }
++                width: root.workspaceImplicitWidth
++                height: root.workspaceImplicitHeight
++                radius: Appearance.rounding.screenRounding * root.scale
++                color: Appearance.colors.colLayer1
++                border.width: 2
++                border.color: ColorUtils.applyAlpha("#FFFFFF", 0.8)
++                opacity: 0.92
++                clip: true
++
++                ShaderEffectSource {
++                    anchors.fill: parent
++                    sourceItem: windowSpace
++                    sourceRect: Qt.rect(root.getWorkspaceColumn(root.deskDragFrom) * root.deskPitch, 0,
++                                        root.workspaceImplicitWidth, root.workspaceImplicitHeight)
++                    // Live until the real thumbnail is hidden, then frozen on that last frame.
++                    live: desktopGhost.visible && !root.deskDragHidden
++                }
++            }
+         }
+     }
+ }
 diff --git c/modules/overview/qmldir i/modules/overview/qmldir
 index 9b15b45..12ca08a 100644
 --- c/modules/overview/qmldir

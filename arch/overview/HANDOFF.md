@@ -1,7 +1,7 @@
 # Mission Control: handoff
 
-Written 2026-11-04, updated 2026-11-09. Step 1 of the build order is done (`ws-layout`, below);
-the rest isn't built yet. Line numbers are as of 2026-11-04.
+Written 2026-11-04, updated 2026-11-09. Step 1 of the build order is done and step 2 is done
+within a monitor (see "Build order"); the rest isn't built yet. Line numbers are as of 2026-11-04.
 To resume, read this file, then start at "Build order".
 
 ## Where the code is
@@ -25,6 +25,7 @@ To resume, read this file, then start at "Build order".
 ## Decisions the owner has made
 
 **Desktops**
+- Closing a desktop in the middle shifts the later ones down (confirmed 2026-11-09), so their `Super+N` changes.
 - Reordering is an illusion: desktop numbers stay put and only their contents move. Dragging desktop 5 to position 1 moves everything accordingly.
 - Reordering must also work between monitors. The UI can show whatever it needs to, as long as it looks like reordering.
 - Closing a desktop moves its windows to a neighbouring desktop. Windows are not closed.
@@ -69,6 +70,12 @@ To resume, read this file, then start at "Build order".
 
 1. **Record and recreate layouts. Done 2026-11-09:** `ws-layout record <ws>` prints a desktop's layout as JSON (split tree with direction and ratio, floating positions, fullscreen/maximized), `ws-layout apply <ws> <file>` rebuilds it on any desktop, `ws-layout check <ws>` rebuilds in place and compares. Tested on throwaway `foot --app-id lt-N` terminals: half + two quarters, a five-window dwindle spiral, floating, fullscreen and maximized, hidden and on-screen desktops, and a move to the other monitor, all pixel-exact and with no drift on repeated rebuilds. Not handled: groups (it stops with an error) and pinned windows (skipped).
 2. **Reorder and close desktops**, including between monitors. The ✕ appears on thumbnail hover. Closing moves windows to the left neighbour, or the right one if it's the first desktop.
+   **Done 2026-11-09 within a monitor.** `ws-layout reorder <from> <to>` and `ws-layout close <ws>` do the work, layouts included; in the overview, dragging a desktop thumbnail (from anywhere on it, its windows too) reorders it macOS-style: the desktop leaves the strip, a copy follows the cursor anywhere on the screen (above the spread), and the other desktops slide aside to open a gap where it would land. Nothing is renumbered until the drop. On the drop the copy settles into the gap and the strip holds that order (and its size) while `ws-layout` moves the windows, then snaps to the real state. The owner asked for this on 2026-11-09 after the first version only framed the target desktop. The ✕ sits on the hovered thumbnail's top-left corner (not on "New Desktop", not when there's only one desktop). Errors from `ws-layout` become a notification. Tested by driving a fake uinput mouse (the script is described under Findings).
+   - Changed on purpose: dragging a window inside a strip thumbnail now moves the whole desktop, like the macOS Spaces bar. Single windows are still dragged in the spread below. Click (focus) and middle click (close) on strip windows still work.
+   - Closing joins the two desktops side by side, each half keeping its layout.
+   - A desktop holding the Windows VM's Looking Glass window (1 or 11 while it runs) can't be moved or shifted: `hypr/windows-vm.lua` would pull it back. `ws-layout` refuses with a notification.
+   - **TODO (owner, 2026-11-09): stop the jumping while `ws-layout` runs.** Focus (and the cursor) go back and forth during a reorder, because each window inserted on a desktop that's on screen focuses the window it splits, and every insertion moves the cursor (see "What step 1 found"). Ideas, untested: rebuild a shown desktop while it's hidden (only hidden desktops split by cursor, so no focus changes), e.g. show a neighbouring empty desktop on that monitor during the move and switch back at the end; batch all insertions of one desktop into a single `hyprctl --batch` (positions can be computed from the tree instead of read back between steps); hide the cursor during the move.
+   - **Still to do:** dragging a desktop to the other monitor. `ws-layout reorder 7 12` already does it; the overview needs the shared drag from step 3, since each monitor is its own window.
 3. **Cross-monitor window drag**, with the spread showing real layouts. Remove the eighth-of-a-screen zone.
 4. **Live rearranging on the normal desktop**, starting with the prototype.
 
@@ -77,18 +84,18 @@ To resume, read this file, then start at "Build order".
 - `hl.dsp.layout(...)` messages (`togglesplit` etc.) only work on the current workspace, even with a `window` argument. `ws-layout` instead sets dwindle options for each insertion: `split_width_multiplier` 0.01 or 100 forces side by side or stacked, `force_split = 2` puts the new window second, `default_split_ratio` sets the share. It puts them back after.
 - Which window a new arrival splits: on a hidden desktop, the window under the cursor; on a desktop that's on screen, the focused window (`use_active_for_splits`). With `use_active_for_splits = false` it split the first window every time.
 - `hl.dsp.window.fullscreen({ mode, action = "set"|"unset", window })` works on hidden windows, but the mode must match (`maximized` for fullscreen 1). `fullscreen_state` did nothing.
+- Testing the overview without a real mouse: `/dev/uinput` is writable by the user (ACL), so a short Python script can create a uinput mouse with raw ioctls (no python-evdev installed), warp with `hl.dsp.cursor.move`, nudge to get hover, then press, move relatively and release. `grim` during the drag shows the visuals.
 - `hyprctl eval` can't return values, but an `error(...)` message comes back, which is handy for probing the Lua API.
 - `ws-layout apply` moves the cursor (and on an on-screen desktop the focus) for each window and puts them back. Fine for a drop; if it shows during reordering, look at hiding the cursor.
 
 ## Open questions for the owner
 
-1. Assumed, not confirmed: the ✕ on a middle desktop shifts later desktops down, as an exception to "no cleanup in the middle". The alternative is leaving an empty slot. If they shift, `Super+N` for those desktops changes.
-2. Should `Super+Alt+W` stay? It closes a window whatever its tabs, which is an exception to "only `Super+Q` quits".
-3. Should live rearranging also come to Mission Control later? The owner said it "could be done" there but prefers the current thumbnail behaviour for now.
+1. Should `Super+Alt+W` stay? It closes a window whatever its tabs, which is an exception to "only `Super+Q` quits".
+2. Should live rearranging also come to Mission Control later? The owner said it "could be done" there but prefers the current thumbnail behaviour for now.
 
 ## State when this was written
 
-Everything from the 2026-11-05 session is committed and pushed. Not committed yet: this file and `ws-layout`. Other uncommitted dotfiles changes belong to the owner; leave them alone.
+Step 1 (`ws-layout`) is committed and pushed. Step 2 is not committed: `ws-layout` reorder/close, `macos.patch` (saved with `make arch-overview-save`) and this file. Other uncommitted dotfiles changes belong to the owner; leave them alone.
 
 ## Warnings
 
