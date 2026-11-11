@@ -31,6 +31,7 @@ arch/
 │       └── slurp             area-picker colors (wraps /usr/bin/slurp)
 ├── system/                   shared, copied to / with sudo (keyd, udev, modules-load)
 ├── wispr-flow/               Wispr Flow build: install.sh + PKGBUILD.in
+├── libva-nvidia-driver/      mainpc: VA-API driver with the multi-GPU fix (PR #484), `makepkg -si`
 ├── hosts/<hostname>/         per-machine overrides, same home/ + system/ layout; wins over shared
 │   └── razer-13/             Razer Blade: monitor scale, Caps Lock remap
 └── overview/                 macOS-style workspace overview

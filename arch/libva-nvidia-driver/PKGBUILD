@@ -1,0 +1,42 @@
+# Local build of Arch's libva-nvidia-driver with upstream PR #484 applied.
+#
+# Why: on mainpc (RTX 3090 + RTX A1000) the 3090 is /dev/nvidia0 but RM device
+# instance 1. Upstream 0.0.18 hardcodes device instance 0, so surface export fails
+# with CUDA 'invalid device ordinal' and Chrome falls back to software decode.
+# PR: https://github.com/elFarto/nvidia-vaapi-driver/pull/484
+#
+# Pinned to the exact commit tested on 2026-11-11 (master 4430507 + PR commit 6339c25).
+# pkgver sorts above 0.0.18-x and below 0.0.19, so the official package replaces this
+# automatically once a release ships. Drop this directory when that release contains the fix.
+#
+# Build + install:  cd ~/.dotfiles/arch/libva-nvidia-driver && makepkg -si
+
+pkgname=libva-nvidia-driver
+pkgver=0.0.18.r40.g6339c25
+pkgrel=1
+pkgdesc='VA-API implementation that uses NVDEC as a backend (with multi-GPU fix, PR #484)'
+arch=('x86_64')
+url='https://github.com/elFarto/nvidia-vaapi-driver/'
+license=('MIT')
+depends=(
+    'glibc'
+    'gst-plugins-bad-libs'
+    'libegl')
+makedepends=(
+    'ffnvcodec-headers'
+    'git'
+    'libva'
+    'meson')
+conflicts=('libva-vdpau-driver')
+source=("nvidia-vaapi-driver::git+https://github.com/elFarto/nvidia-vaapi-driver.git#commit=6339c25495a8151c5a7e4cfde062680ef612f6ef")
+sha256sums=('SKIP')
+
+build() {
+    arch-meson nvidia-vaapi-driver build
+    meson compile -C build
+}
+
+package() {
+    meson install -C build --destdir "$pkgdir"
+    install -D -m644 nvidia-vaapi-driver/COPYING "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
