@@ -8,16 +8,34 @@
 #        the VM stops), ignoring AQ_DRM_DEVICES. Announce the A1000's DRM nodes as
 #        removed (a synthetic udev "remove"; nothing is unplugged): Hyprland drops that
 #        GPU and closes it, and logind releases its copy.
+#      * coolercontrold (root, reads the A1000's temperature through NVML) is stopped
+#        and started again once the VM has the card (started/begin), when NVML no
+#        longer sees it. The fans hold their last speed for those few seconds.
 #      * Anything else (CUDA jobs on /dev/nvidiaN) is real work: refuse and name it.
-#  - release/end: the GPU is back on nvidia; keep desktop apps off it again.
+#  - release/end: the GPU is back on nvidia; keep desktop apps off it again, and start
+#    coolercontrold if a failed start stopped it and never reached started/begin.
 [[ $1 == win11 ]] || exit 0
 GPU=0000:0d:00.0
+CC=coolercontrold
+CC_STOPPED=/run/a1000-guard.$CC-stopped
 
-if [[ $2 == release && $3 == end ]]; then
-  /usr/local/bin/a1000-restrict || true
-  exit 0
-fi
-[[ $2 == prepare && $3 == begin ]] || exit 0
+cc_restart() {
+  [[ -e $CC_STOPPED ]] || return 0
+  rm -f "$CC_STOPPED"
+  systemctl start --no-block $CC.service
+}
+
+case "$2/$3" in
+  release/end)
+    /usr/local/bin/a1000-restrict || true
+    cc_restart
+    exit 0 ;;
+  started/begin)
+    cc_restart
+    exit 0 ;;
+  prepare/begin) ;;
+  *) exit 0 ;;
+esac
 [[ $(basename "$(readlink -f /sys/bus/pci/devices/$GPU/driver)") == nvidia ]] || exit 0
 
 minor=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' /proc/driver/nvidia/gpus/$GPU/information)
@@ -39,9 +57,31 @@ if ((${#drm[@]})) && [[ -n $(holders "${drm[@]}") ]]; then
   done
 fi
 
-users=$(names "$(holders "/dev/nvidia$minor" "${drm[@]}")")
-if [[ -n $users ]]; then
-  echo "RTX A1000 is in use on the host by: $users- stop those before starting win11." >&2
+all=$(holders "/dev/nvidia$minor" "${drm[@]}")
+cc=() other=()
+for pid in $all; do
+  if [[ $(cat /proc/$pid/comm 2>/dev/null) == "$CC" ]]; then cc+=("$pid"); else other+=("$pid"); fi
+done
+refuse() {
+  echo "RTX A1000 is in use on the host by: $(names "$1")- stop those before starting win11." >&2
   exit 1
+}
+# Real work holds it: refuse before touching coolercontrold.
+((${#other[@]})) && refuse "${other[*]}"
+
+if ((${#cc[@]})); then
+  echo "a1000-guard: stopping $CC until win11 has the A1000" >&2
+  touch "$CC_STOPPED"
+  systemctl stop $CC.service
+  for _ in $(seq 50); do
+    [[ -z $(holders "/dev/nvidia$minor" "${drm[@]}") ]] && break
+    sleep 0.1
+  done
+fi
+
+users=$(holders "/dev/nvidia$minor" "${drm[@]}")
+if [[ -n $users ]]; then
+  cc_restart
+  refuse "$users"
 fi
 exit 0

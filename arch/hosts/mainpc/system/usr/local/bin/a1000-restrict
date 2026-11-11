@@ -1,34 +1,62 @@
 #!/usr/bin/env bash
-# Make the RTX A1000's /dev/nvidiaN usable only by root and the gpu-a1000 group.
+# Create the NVIDIA device files and make the RTX A1000's /dev/nvidiaN usable only by
+# root and the gpu-a1000 group.
 #
 # NVIDIA's EGL/Vulkan libraries open every GPU's /dev/nvidiaN, so without this the
-# desktop (Hyprland, Xwayland, every Electron app) holds the A1000 open and the
+# desktop (Hyprland, Xwayland, Chrome, every Electron app) holds the A1000 open and the
 # driver can never release it to the Windows VM (arch/vm). CUDA/AI work reaches it
 # through the group: services join gpu-a1000, shells use `a1000 <cmd>`, Docker is root.
-# The minor number can change between boots, so it is looked up each time.
+#
+# This script is the only thing that makes /dev/nvidia*. nvidia-a1000.conf sets
+# NVreg_ModifyDeviceFiles=0, so neither nvidia-modprobe nor the NVIDIA libraries
+# create or chmod device files any more. Before that, any root program using
+# NVML/CUDA (coolercontrold after its upgrade, `sudo nvidia-smi`) reset every
+# /dev/nvidiaN to 0666 and the desktop apps opened afterwards took the A1000
+# (2026-11-10). Without these files NVIDIA's EGL fails and Hyprland and the SDDM
+# greeter crash at start (black screen, 2026-11-08), so the 3090's run first.
+#
+# Minor numbers can change between boots, so they are looked up each time.
 # Run at boot (a1000-restrict.service) and when the VM hands the GPU back.
 set -eu
 
 GPU=0000:0d:00.0
+NV_MAJOR=195
 
-# Create the other device files first. With nvidia-modprobe no longer setuid
-# (nvidia-modprobe-nosuid.hook), nothing else makes /dev/nvidiactl, /dev/nvidia-modeset
-# or the RTX 3090's /dev/nvidiaN: the 60-nvidia.rules udev rule skips itself once
-# /dev/nvidia-uvm exists, and it usually does by then. Without them NVIDIA's EGL fails
-# and Hyprland and the SDDM greeter crash at start (black screen, 2026-11-08).
+minor_of() { awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' "$1"; }
+
+# mk <path> <major> <minor> <mode> <group>: (re)create a character device file with
+# exactly that number, mode and group.
+mk() {
+  local want
+  want=$(printf '%x:%x' "$2" "$3")
+  if [ ! -c "$1" ] || [ "$(stat -c '%t:%T' "$1")" != "$want" ]; then
+    rm -f "$1"
+    mknod -m "$4" "$1" c "$2" "$3"
+  fi
+  chgrp "$5" "$1"
+  chmod "$4" "$1"
+}
+
+a1000_minor=
+info=/proc/driver/nvidia/gpus/$GPU/information
+[ -r "$info" ] && a1000_minor=$(minor_of "$info")
+
+# Every other GPU (the 3090): open to everyone, as the driver would make it.
 for i in /proc/driver/nvidia/gpus/*/information; do
   [ -r "$i" ] || continue
-  m=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' "$i")
-  [ -c "/dev/nvidia$m" ] || /usr/bin/nvidia-modprobe -c "$m"
+  m=$(minor_of "$i")
+  [ "$m" = "$a1000_minor" ] && continue
+  mk "/dev/nvidia$m" $NV_MAJOR "$m" 0666 root
 done
-[ -c /dev/nvidiactl ] || /usr/bin/nvidia-modprobe -c 255 # minor 255 is /dev/nvidiactl
-/usr/bin/nvidia-modprobe -m -u # nvidia-modeset and nvidia-uvm (no-op if present)
-info=/proc/driver/nvidia/gpus/$GPU/information
-[ -r "$info" ] || exit 0 # not on nvidia right now (e.g. the VM has it)
+mk /dev/nvidiactl $NV_MAJOR 255 0666 root
+mk /dev/nvidia-modeset $NV_MAJOR 254 0666 root
+uvm=$(awk '$2 == "nvidia-uvm" {print $1}' /proc/devices)
+if [ -n "$uvm" ]; then
+  mk /dev/nvidia-uvm "$uvm" 0 0666 root
+  mk /dev/nvidia-uvm-tools "$uvm" 1 0666 root
+fi
 
-minor=$(awk -F: '/Device Minor/ {gsub(/[ \t]/, "", $2); print $2}' "$info")
-dev=/dev/nvidia$minor
-[ -c "$dev" ] || /usr/bin/nvidia-modprobe -c "$minor"
-chgrp gpu-a1000 "$dev"
-chmod 0660 "$dev"
+[ -n "$a1000_minor" ] || exit 0 # not on nvidia right now (e.g. the VM has it)
+dev=/dev/nvidia$a1000_minor
+mk "$dev" $NV_MAJOR "$a1000_minor" 0660 gpu-a1000
 echo "restricted $dev (RTX A1000) to root:gpu-a1000"

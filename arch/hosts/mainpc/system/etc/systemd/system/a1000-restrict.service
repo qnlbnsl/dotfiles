@@ -1,9 +1,10 @@
 [Unit]
-Description=Keep desktop apps off the RTX A1000 (gpu-a1000 group only)
-# Before anyone can log in, so the session never opens the card.
+Description=Create NVIDIA device files; keep desktop apps off the RTX A1000 (gpu-a1000 group only)
+# Before anyone can log in, so the session never opens the card. No condition on the
+# A1000 being present: this also makes the 3090's device files (NVreg_ModifyDeviceFiles=0),
+# and without them the desktop can't start.
 After=systemd-udevd.service systemd-modules-load.service systemd-sysusers.service
-Before=systemd-user-sessions.service
-ConditionPathExists=/proc/driver/nvidia/gpus/0000:0d:00.0
+Before=systemd-user-sessions.service display-manager.service
 
 [Service]
 Type=oneshot
