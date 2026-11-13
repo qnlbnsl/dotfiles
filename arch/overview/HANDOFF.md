@@ -1,8 +1,8 @@
 # Mission Control: handoff
 
-Written 2026-11-04, updated 2026-11-09. Step 1 of the build order is done and step 2 is done
-within a monitor (see "Build order"); the rest isn't built yet. Line numbers are as of 2026-11-04.
-To resume, read this file, then start at "Build order".
+Written 2026-11-04, updated 2026-11-13. Steps 1-3 of the build order are done (3 needs polish)
+and a first version of step 4 works; see "Build order" and "Improvements to make". Line numbers
+are as of 2026-11-04. To resume, read this file, then start at "Improvements to make".
 
 ## Where the code is
 
@@ -85,16 +85,102 @@ To resume, read this file, then start at "Build order".
    - The eighth-of-a-screen zone is gone: drops on a window split it in half.
    - Tested with the uinput mouse: a window from the left spread to the right strip's New Desktop, and desktop 8 (two stacked windows) to the right monitor's New Desktop (it became 16; mid-drag frames show the left gap closed and the right one open). The owner then tried both directions: they work but need more work (details to come from the owner).
    - Known: while a window is on the other monitor, its tile in the source spread is off-surface (invisible). The extra thumbnail in the target strip is labelled with its number, not "New Desktop".
-4. **Live rearranging on the normal desktop**, starting with the prototype.
+4. **Live rearranging on the normal desktop. First version working 2026-11-13** (not committed yet):
+   - `modules/overview/LiveDrag.qml` in the overview shell, plus the `SUPER + mouse:272` binds at
+     the end of `hypr/bindings.lua`. Super+drag no longer uses Hyprland's `window.drag()`.
+   - The press bind calls `qs ipc -c overview call livedrag start X Y` (cursor from
+     `hl.get_cursor_pos()`). The release is caught by a one-off bind on the bare `mouse:272`
+     (`release`, `ignore_mods`) made inside the press bind: a `SUPER + mouse:272` release bind
+     doesn't fire when Super is let go first. It calls `livedrag drop X Y` and unbinds itself.
+   - While the button is held the real windows rearrange (changed 2026-11-13 after the owner
+     saw the first version's copies zoom instead of resize): once the cursor rests in a zone for
+     70 ms the dragged window is really put where the drop would put it, so the other windows
+     resize and redraw at their new size. A frame marks the dragged window's new place and a
+     small copy of it follows the cursor. Leaving every zone, or a swap, puts it back in its own
+     place (an insertion next to its old sibling, or `ws-layout apply` of a layout recorded at
+     the start when the sibling was a whole subtree). A swap still happens on the drop, shown
+     meanwhile with copies at actual size (clipped, not zoomed) and a glass slot. Floating
+     windows follow the cursor for real (throttled to one move per 70 ms).
+   - Each change is one `hyprctl --batch`, run one at a time; the newest wanted state wins. The
+     drop waits for the last one. Focusing the window to split warps the cursor, so
+     `cursor:no_warps` is on while a window is placed.
+   - Where it lands, judged against the desktop with the dragged window taken out: near an edge
+     of the window under the cursor, that window splits in half and the dragged one takes that
+     side; in the middle (same desktop only) the two swap; on an empty desktop it fills it.
+     Works across monitors. Floating windows are moved to the drop point.
+   - The layout is predicted with ws-layout's tree-from-geometry method ported to JS. The drop
+     is one `hyprctl --batch`: move the window to `special:ws-layout`, set dwindle options
+     (`force_split`, `split_width_multiplier`, ratio 1), focus the target, move the window back,
+     restore the options, focus the dragged window.
+   - Tested with `arch/overview/fakemouse.py` on throwaway `foot --app-id lt-N` windows: split
+     left of a full-height window, split left inside a stacked pair, swap in a column, swap side
+     by side, a window to the other monitor's desktop (split below its window). The predictions
+     matched the result except for a few px (502/498 instead of 503/503).
+   - What the prototype found (tested): with a press consumed by a bind Hyprland gives the
+     pointer to no surface, so the overlay gets no motion. A `HyprlandFocusGrab` over all the
+     overlay windows fixes that (motion arrives on both monitors). But if the overlay takes
+     keyboard focus, the release bind doesn't fire, so the overlay has none (no Escape).
+   - Crossing monitors (fixed 2026-11-13, after the owner found Super+drag couldn't reach the
+     left monitor): the grab doesn't move the pointer to the other monitor's overlay while the
+     button is held, and the source overlay gets no motion outside its own surface. So when no
+     surface motion has come for 40 ms, `LiveDrag.qml` polls `hyprctl cursorpos -j` (every
+     16 ms at most) until it does. Tested right to left with the fake mouse (preview and slot on
+     the left monitor, the source desktop closing up on the right).
+   - `qs ipc -c overview call livedrag setTrace true` logs moves, applied states and the drop
+     (`qs log -c overview -r 'qml.debug=true'`); `setDryRun true` also stops anything moving.
+   - Old: `setDryRun true` logged the plan as it changes and the
+     drop's commands (`qs log -c overview -r 'qml.debug=true'`) without moving anything.
 
 **What step 1 found about Hyprland 0.56.2** (tested)
 - Dwindle doesn't expose its tree (a window's `layout` field in Lua only has the layout name), so the tree comes from geometry. The root box is the work area: windows sit inside it by `border_size`, and the split line is the middle of the gap between windows. With that model the ratios come out exact.
 - `hl.dsp.layout(...)` messages (`togglesplit` etc.) only work on the current workspace, even with a `window` argument. `ws-layout` instead sets dwindle options for each insertion: `split_width_multiplier` 0.01 or 100 forces side by side or stacked, `force_split = 2` puts the new window second, `default_split_ratio` sets the share. It puts them back after.
 - Which window a new arrival splits: on a hidden desktop, the window under the cursor; on a desktop that's on screen, the focused window (`use_active_for_splits`). With `use_active_for_splits = false` it split the first window every time.
 - `hl.dsp.window.fullscreen({ mode, action = "set"|"unset", window })` works on hidden windows, but the mode must match (`maximized` for fullscreen 1). `fullscreen_state` did nothing.
-- Testing the overview without a real mouse: `/dev/uinput` is writable by the user (ACL), so a short Python script can create a uinput mouse with raw ioctls (no python-evdev installed), warp with `hl.dsp.cursor.move`, nudge to get hover, then press, move relatively and release. `grim` during the drag shows the visuals.
+- Testing the overview without a real mouse: `/dev/uinput` is writable by the user (ACL), so a short Python script can create a uinput mouse with raw ioctls (no python-evdev installed), warp with `hl.dsp.cursor.move`, nudge to get hover, then press, move relatively and release. `grim` during the drag shows the visuals. Saved since 2026-11-13 as `arch/overview/fakemouse.py` (with a fake Super key; see its notes on keyd and acceleration). It moves the real cursor, so don't run it while the owner is using the machine.
 - `hyprctl eval` can't return values, but an `error(...)` message comes back, which is handy for probing the Lua API.
 - `ws-layout apply` moves the cursor (and on an on-screen desktop the focus) for each window and puts them back. Fine for a drop; if it shows during reordering, look at hiding the cursor.
+
+## Improvements to make
+
+Collected 2026-11-13. "Owner" marks what the owner reported; the rest came out of building step 4.
+
+**Mission Control (overview)**
+1. (Owner) Dragging a window from the spread (or anywhere) onto an empty desktop in the strip
+   inserts a new desktop instead of moving the window onto that empty desktop. It should move
+   the window there. Not investigated yet; start with how a window drop on the strip picks
+   "insert desktop" versus "move to desktop" (`OverviewWidget.qml`, the cross-drag drop plan).
+2. (Owner) Step 3 needs more work in general; details still to come from the owner.
+3. From step 3: while a window is over the other monitor its tile in the source spread is
+   invisible, and the extra thumbnail in the target strip shows a number, not "New Desktop".
+4. From step 2: focus and the cursor jump while `ws-layout` reorders (ideas in step 2).
+
+**Live rearranging (step 4)**
+5. Drops can only split one window. Add zones at the desktop's edges that split the whole
+   desktop (e.g. a full-height column on the right), which today can't be made by dragging.
+6. No way to cancel mid-drag (the overlay can't take keyboard focus, see step 4). Dropping back
+   on the window's own place does nothing, which works as a cancel for now. A temporary
+   Escape bind made in the press bind could do it, but Super+Escape is Omarchy's system menu.
+7. The overlay appears roughly 300 ms after the press (`qs ipc` start, mapping the surfaces,
+   the grab). Keeping the overlay mapped but empty and input-transparent when idle might cut it.
+8. Floating windows: untested. They follow the cursor in steps (one move per 70 ms), not
+   smoothly like the old `window.drag()`. Maybe keep `window.drag()` for them.
+9. Swap: Hyprland's swap dispatcher run by hand once gave a layout that wasn't a plain swap of
+   the two windows (with a nested split); the overlay's swaps matched. Check more layouts.
+10. Fixed (owner, 2026-11-13): the other windows zoomed instead of resizing. They now really
+    resize during the drag. Left over: the small copy under the cursor showed blank in a test
+    once the window was moved; and while a window is parked in `special:ws-layout` between two
+    placements, a crash of the overview shell would leave it there.
+11. Fullscreen and maximized windows aren't handled: a desktop with one can't be a drop target,
+    and a fullscreen window can't be dragged. Groups (overlapping windows) block it too.
+12. If the overview shell isn't running, Super+drag does nothing (no fallback to `window.drag()`).
+13. Super+click without moving does nothing (the old drag focused nothing either).
+14. Only lightly tried with a real mouse (the owner: within a monitor it works).
+15. On the other monitor the cursor is polled by spawning `hyprctl` (up to ~60 a second while
+    dragging there). Reading Hyprland's request socket directly (`Quickshell.Io` Socket on
+    `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock`) would be cheaper.
+16. (Owner) Plain drags without Super (an app's title bar or tab strip) are Hyprland's own
+    move and don't show the preview. Hyprland has no event for a drag starting; it would need
+    watching for the window moving after a left press, and fixing up Hyprland's own drop.
 
 ## Open questions for the owner
 
@@ -103,7 +189,9 @@ To resume, read this file, then start at "Build order".
 
 ## State when this was written
 
-Steps 1-3 are committed. Step 3 works both ways but needs more work (ask the owner what). Next is step 4, plus the focus-jumping TODO in step 2.
+Steps 1-3 are committed. A first version of step 4 works and is saved to `macos.patch` and
+`hypr/bindings.lua` but not committed (2026-11-13). Next: the owner tries step 4 with a real
+mouse, then the list under "Improvements to make".
 
 ## Warnings
 

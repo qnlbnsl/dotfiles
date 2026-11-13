@@ -166,3 +166,20 @@ require("hypr.focus-requests")
 local windows_vm = os.getenv("HOME") .. "/.config/hypr/windows-vm.lua"
 local f = io.open(windows_vm)
 if f then f:close(); require("hypr.windows-vm") end
+
+-- Super+drag a window: live rearranging (Mission Control step 4, arch/overview). While the button
+-- is held, the overview shell shows the layout the drop would make; the drop moves the window.
+-- The release is caught by a one-off bind on the bare button, so it still ends the drag when
+-- Super is let go first (a Super + button release bind wouldn't fire then).
+local function livedrag(call)
+  local p = hl.get_cursor_pos()
+  if p then hl.exec_cmd(string.format("qs ipc -c overview call livedrag %s %.1f %.1f", call, p.x, p.y)) end
+end
+hl.unbind("SUPER + mouse:272")
+o.bind("SUPER + mouse:272", "Move window (live rearrange)", function()
+  livedrag("start")
+  hl.bind("mouse:272", function()
+    livedrag("drop")
+    hl.unbind("mouse:272")
+  end, { release = true, ignore_mods = true })
+end)

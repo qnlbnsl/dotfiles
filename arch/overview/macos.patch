@@ -67,6 +67,849 @@ index 0000000..aa1b6b8
 +        font.family: Appearance.font.family.main
 +    }
 +}
+diff --git c/modules/overview/LiveDrag.qml i/modules/overview/LiveDrag.qml
+new file mode 100644
+index 0000000..026a838
+--- /dev/null
++++ i/modules/overview/LiveDrag.qml
+@@ -0,0 +1,837 @@
++import QtQuick
++import Quickshell
++import Quickshell.Io
++import Quickshell.Wayland
++import Quickshell.Widgets
++import Quickshell.Hyprland
++import "../../common"
++import "../../services"
++import "."
++
++// Live rearranging on the normal desktop (Mission Control step 4).
++//
++// Super+drag on a window (hypr/bindings.lua) calls `livedrag start` on the press and
++// `livedrag drop` on the release. The real windows stay put while the button is held: an
++// overlay on every monitor shows the layout the drop would make (the other windows already in
++// their new places, a glass slot where the dragged one lands) and a small copy of the dragged
++// window follows the cursor. On the drop the dragged window is moved in one hyprctl batch.
++//
++// The overlay holds a focus grab over all monitors: without it Hyprland keeps the pointer on
++// the surface under the press (the bind ate the press, so that's no surface at all) and the
++// overlay would get no motion while the button is down.
++//
++// Where a window lands, on the window under the cursor (as it is with the dragged one taken
++// out): near an edge, that window is split in half and the dragged one takes that side; in the
++// middle (same desktop only) the two swap; on an empty desktop it fills it. Floating windows
++// are just moved. The split tree is worked out from window geometry, the same way as
++// ws-layout does it (dwindle doesn't expose its tree).
++Scope {
++    id: ld
++
++    // { address, floating, ws, rect: {x,y,w,h}, grabU, grabV, toplevel } while dragging.
++    property var drag: null
++    property point pos: Qt.point(0, 0)     // cursor, global layout coordinates
++    property point startPos: Qt.point(0, 0)
++    property bool moved: false
++    property var plan: null                 // what the drop would do, see computePlan()
++    property bool dropping: false           // drop sent; hold the picture until windows settle
++
++    property var snapshot: []               // clients when the drag started
++    property var monitorsSnap: []
++    property var layoutCache: ({})          // ws -> { tree, box } of the desktop as it was
++
++    // Hyprland options, read once.
++    property real gapsIn: 4
++    property var gapsOut: [8, 8, 8, 8]      // top right bottom left
++    property real border: 1
++    property real rounding: 0
++    property var dwindleSaved: ({})
++    property bool noWarps: false
++
++    readonly property bool active: drag !== null
++    property bool dryRun: false             // debugging: show the drag, don't move anything
++    property bool trace: false              // debugging: log moves, applied states and the drop
++    property int traceCount: 0
++
++    Component.onCompleted: readOptions.running = true
++
++    Process {
++        id: readOptions
++        command: ["sh", "-c", "for o in general:gaps_in general:gaps_out general:border_size decoration:rounding "
++            + "dwindle:force_split dwindle:split_width_multiplier dwindle:default_split_ratio dwindle:smart_split "
++            + "dwindle:use_active_for_splits cursor:no_warps; do hyprctl getoption $o -j | tr -d '\\n'; echo; done"]
++        stdout: StdioCollector {
++            onStreamFinished: {
++                const v = {};
++                for (const line of text.split("\n")) {
++                    if (!line.trim())
++                        continue;
++                    try {
++                        const o = JSON.parse(line);
++                        v[o.option] = o.css ?? o.int ?? o.float ?? o.bool;
++                    } catch (e) {}
++                }
++                const css = s => `${s ?? ""}`.trim().split(/\s+/).map(Number);
++                ld.gapsIn = css(v["general:gaps_in"])[0] ?? 4;
++                const go = css(v["general:gaps_out"]);
++                ld.gapsOut = go.length === 4 ? go : [go[0] ?? 8, go[0] ?? 8, go[0] ?? 8, go[0] ?? 8];
++                ld.border = v["general:border_size"] ?? 1;
++                ld.rounding = v["decoration:rounding"] ?? 0;
++                ld.noWarps = !!(v["cursor:no_warps"] ?? false);
++                ld.dwindleSaved = {
++                    force_split: v["dwindle:force_split"] ?? 0,
++                    split_width_multiplier: v["dwindle:split_width_multiplier"] ?? 1,
++                    default_split_ratio: v["dwindle:default_split_ratio"] ?? 1,
++                    smart_split: !!(v["dwindle:smart_split"] ?? false),
++                    use_active_for_splits: !!(v["dwindle:use_active_for_splits"] ?? true)
++                };
++            }
++        }
++    }
++
++    // --- geometry ---------------------------------------------------------------------------
++
++    function monRect(m) {
++        const t = (m.transform ?? 0) % 2 === 1;
++        return { x: m.x, y: m.y, w: (t ? m.height : m.width) / m.scale, h: (t ? m.width : m.height) / m.scale };
++    }
++
++    function monitorAt(p) {
++        for (const m of monitorsSnap) {
++            const r = monRect(m);
++            if (p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h)
++                return m;
++        }
++        return null;
++    }
++
++    function monitorOfWs(ws) {
++        return monitorsSnap.find(m => m.activeWorkspace?.id === ws) ?? null;
++    }
++
++    // Dwindle's root box: the work area (monitor minus reserved space and gaps_out).
++    function workArea(m) {
++        const r = monRect(m), res = m.reserved ?? [0, 0, 0, 0];
++        const x = r.x + res[0] + gapsOut[3], y = r.y + res[1] + gapsOut[0];
++        return { x: x, y: y, w: r.w - res[0] - res[2] - gapsOut[1] - gapsOut[3],
++                 h: r.h - res[1] - res[3] - gapsOut[0] - gapsOut[2] };
++    }
++
++    function tiledOn(ws) {
++        return snapshot.filter(c => c.workspace?.id === ws && c.mapped && !c.hidden && !c.pinned && !c.floating);
++    }
++
++    function rectOf(c) {
++        return { x: c.at[0], y: c.at[1], w: c.size[0], h: c.size[1] };
++    }
++
++    // First line along an axis with every window wholly on one side (ws-layout's cut()).
++    function cut(items, axis) {
++        const key = axis === 0 ? "x" : "y", ext = axis === 0 ? "w" : "h";
++        const s = items.slice().sort((a, b) => a.r[key] - b.r[key]);
++        let reach = -Infinity;
++        for (let i = 0; i < s.length - 1; ++i) {
++            reach = Math.max(reach, s[i].r[key] + s[i].r[ext]);
++            if (reach <= s[i + 1].r[key] + 2)
++                return { first: s.slice(0, i + 1), second: s.slice(i + 1), line: (reach + s[i + 1].r[key]) / 2 };
++        }
++        return null;
++    }
++
++    function splitTree(items, box) {
++        if (items.length === 1)
++            return { window: items[0].a };
++        for (const axis of [0, 1]) {
++            const found = cut(items, axis);
++            if (!found)
++                continue;
++            let ba, bb, ratio;
++            if (axis === 0) {
++                ba = { x: box.x, y: box.y, w: found.line - box.x, h: box.h };
++                bb = { x: found.line, y: box.y, w: box.x + box.w - found.line, h: box.h };
++                ratio = 2 * ba.w / box.w;
++            } else {
++                ba = { x: box.x, y: box.y, w: box.w, h: found.line - box.y };
++                bb = { x: box.x, y: found.line, w: box.w, h: box.y + box.h - found.line };
++                ratio = 2 * ba.h / box.h;
++            }
++            return { split: axis === 0 ? "h" : "v", ratio: ratio,
++                     a: splitTree(found.first, ba), b: splitTree(found.second, bb) };
++        }
++        return null; // overlapping windows (a group): no layout
++    }
++
++    // The desktop as it was when the drag started: { tree, box }, tree null when empty or unknown.
++    function layoutOf(ws) {
++        if (layoutCache[ws] !== undefined)
++            return layoutCache[ws];
++        const wins = tiledOn(ws);
++        const m = monitorOfWs(ws) ?? monitorsSnap.find(mm => mm.id === snapshot.find(c => c.workspace?.id === ws)?.monitor);
++        let result = { tree: null, box: m ? workArea(m) : null, blocked: false };
++        if (wins.some(c => c.fullscreen))
++            result.blocked = true;
++        else if (wins.length > 0) {
++            const items = wins.map(c => ({ a: c.address, r: rectOf(c) }));
++            const b = border;
++            const xs = [], ys = [];
++            for (const i of items) {
++                xs.push(i.r.x, i.r.x + i.r.w);
++                ys.push(i.r.y, i.r.y + i.r.h);
++            }
++            const box = { x: Math.min(...xs) - b, y: Math.min(...ys) - b,
++                          w: Math.max(...xs) - Math.min(...xs) + 2 * b, h: Math.max(...ys) - Math.min(...ys) + 2 * b };
++            const tree = splitTree(items, box);
++            result = { tree: tree, box: box, blocked: tree === null };
++        }
++        const c = Object.assign({}, layoutCache);
++        c[ws] = result;
++        layoutCache = c;
++        return result;
++    }
++
++    function prune(node, address) {
++        if (!node)
++            return null;
++        if (node.window !== undefined)
++            return node.window === address ? null : node;
++        const a = prune(node.a, address), b = prune(node.b, address);
++        if (a && b)
++            return { split: node.split, ratio: node.ratio, a: a, b: b };
++        return a || b;
++    }
++
++    function insert(node, target, side, address) {
++        if (node.window !== undefined) {
++            if (node.window !== target)
++                return node;
++            const me = { window: address };
++            const first = side === "left" || side === "top";
++            return { split: side === "left" || side === "right" ? "h" : "v", ratio: 1,
++                     a: first ? me : node, b: first ? node : me };
++        }
++        return { split: node.split, ratio: node.ratio, a: insert(node.a, target, side, address),
++                 b: insert(node.b, target, side, address) };
++    }
++
++    function swapLeaves(node, x, y) {
++        if (node.window !== undefined)
++            return { window: node.window === x ? y : node.window === y ? x : node.window };
++        return { split: node.split, ratio: node.ratio, a: swapLeaves(node.a, x, y), b: swapLeaves(node.b, x, y) };
++    }
++
++    // Window rectangles of a tree laid out in box: a window sits inside its cell by the border
++    // on the work area's edges and by gaps_in + border between windows.
++    function rects(tree, box) {
++        const out = {};
++        const inner = gapsIn + border, outer = border, eps = 0.5;
++        const walk = (n, c) => {
++            if (n.window !== undefined) {
++                const l = Math.abs(c.x - box.x) < eps ? outer : inner;
++                const t = Math.abs(c.y - box.y) < eps ? outer : inner;
++                const r = Math.abs(c.x + c.w - box.x - box.w) < eps ? outer : inner;
++                const b = Math.abs(c.y + c.h - box.y - box.h) < eps ? outer : inner;
++                out[n.window] = { x: c.x + l, y: c.y + t, w: c.w - l - r, h: c.h - t - b };
++                return;
++            }
++            if (n.split === "h") {
++                const wa = c.w * n.ratio / 2;
++                walk(n.a, { x: c.x, y: c.y, w: wa, h: c.h });
++                walk(n.b, { x: c.x + wa, y: c.y, w: c.w - wa, h: c.h });
++            } else {
++                const ha = c.h * n.ratio / 2;
++                walk(n.a, { x: c.x, y: c.y, w: c.w, h: ha });
++                walk(n.b, { x: c.x, y: c.y + ha, w: c.w, h: c.h - ha });
++            }
++        };
++        if (tree && box)
++            walk(tree, box);
++        return out;
++    }
++
++    function inside(r, p) {
++        return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
++    }
++
++    function distance(r, p) {
++        const dx = Math.max(r.x - p.x, 0, p.x - r.x - r.w), dy = Math.max(r.y - p.y, 0, p.y - r.y - r.h);
++        return Math.hypot(dx, dy);
++    }
++
++    // What the drop would do with the cursor at p:
++    // { kind: "split"|"swap"|"empty"|"float"|"none", ws, target, side, slot (global rect),
++    //   predicted: { ws: { address: rect } }, noop }
++    function computePlan(p) {
++        const d = drag;
++        const m = monitorAt(p);
++        if (!d || !m || (m.specialWorkspace?.id ?? 0) !== 0)
++            return { kind: "none", predicted: {} };
++        const ws = m.activeWorkspace.id;
++        const predicted = {};
++
++        if (d.floating) {
++            const x = Math.round(p.x - d.grabU * d.rect.w), y = Math.round(p.y - d.grabV * d.rect.h);
++            const keep = w => {
++                const out = {};
++                for (const c of tiledOn(w))
++                    out[c.address] = rectOf(c);
++                return out;
++            };
++            predicted[d.ws] = keep(d.ws);
++            if (ws !== d.ws)
++                predicted[ws] = keep(ws);
++            return { kind: "float", ws: ws, x: x, y: y, slot: { x: x, y: y, w: d.rect.w, h: d.rect.h },
++                     predicted: predicted, noop: ws === d.ws && x === d.rect.x && y === d.rect.y };
++        }
++
++        const src = layoutOf(d.ws);
++        const srcBase = prune(src.tree, d.address);
++        let tgt = ws === d.ws ? { tree: srcBase, box: src.box, blocked: src.blocked } : layoutOf(ws);
++        if (tgt.blocked || src.blocked)
++            return { kind: "none", predicted: {} };
++        if (ws !== d.ws)
++            predicted[d.ws] = rects(srcBase, src.box);
++
++        if (!tgt.tree) {
++            const box = workArea(m);
++            predicted[ws] = rects({ window: d.address }, box);
++            return { kind: "empty", ws: ws, slot: predicted[ws][d.address], predicted: predicted, noop: false };
++        }
++
++        const base = rects(tgt.tree, tgt.box);
++        let target = null, best = Infinity;
++        for (const a in base) {
++            const dist = inside(base[a], p) ? -1 : distance(base[a], p);
++            if (dist < best) {
++                best = dist;
++                target = a;
++            }
++        }
++        const r = base[target];
++        const u = (p.x - r.x) / r.w, v = (p.y - r.y) / r.h;
++        let kind = "split", side, tree;
++        if (ws === d.ws && Math.abs(u - 0.5) < 0.18 && Math.abs(v - 0.5) < 0.18) {
++            kind = "swap";
++            tree = swapLeaves(src.tree, d.address, target);
++        } else {
++            const edges = [["left", u], ["right", 1 - u], ["top", v], ["bottom", 1 - v]];
++            side = edges.reduce((m, e) => e[1] < m[1] ? e : m)[0];
++            tree = insert(tgt.tree, target, side, d.address);
++        }
++        predicted[ws] = rects(tree, tgt.box);
++        const slot = predicted[ws][d.address];
++        let noop = false;
++        if (ws === d.ws) {
++            noop = true;
++            for (const c of tiledOn(ws)) {
++                const a = rectOf(c), b = predicted[ws][c.address];
++                if (!b || Math.abs(a.x - b.x) > 2 || Math.abs(a.y - b.y) > 2 || Math.abs(a.w - b.w) > 2 || Math.abs(a.h - b.h) > 2) {
++                    noop = false;
++                    break;
++                }
++            }
++        }
++        return { kind: kind, ws: ws, target: target, side: side, base: r, slot: slot, predicted: predicted, noop: noop };
++    }
++
++    // --- start, move, drop ------------------------------------------------------------------
++    //
++    // The real windows are the preview: while the button is held the dragged window is put
++    // where the drop would put it, so the other windows really resize and redraw (copies could
++    // only be scaled). Each change is one hyprctl batch, run one at a time; the latest wanted
++    // state wins. "orig" is the window back in its own place (for a swap, which is applied on
++    // the drop and shown with copies meanwhile, for no target, and for dropping it back).
++
++    property string appliedKey: "orig"
++    property string applyingKey: ""
++    property string wantKey: "orig"
++    property var wantPlan: null
++    property bool applyBusy: false
++    property var applySteps: []
++    property bool pendingFinish: false
++    property var restore: null              // how to put the window back in its own place
++    readonly property string origFile: `${Quickshell.env("XDG_RUNTIME_DIR")}/livedrag-orig.json`
++
++    function findParent(node, address) {
++        if (!node || node.window !== undefined)
++            return null;
++        if (node.a.window === address || node.b.window === address)
++            return node;
++        return findParent(node.a, address) ?? findParent(node.b, address);
++    }
++
++    function begin(cursor) {
++        if (trace)
++            console.log("livedrag begin", cursor);
++        snapshot = HyprlandData.windowList;
++        monitorsSnap = HyprlandData.monitors;
++        layoutCache = ({});
++        const m = monitorAt(cursor);
++        if (!m || (m.specialWorkspace?.id ?? 0) !== 0)
++            return;
++        const ws = m.activeWorkspace.id;
++        const hits = snapshot.filter(c => c.workspace?.id === ws && c.mapped && !c.hidden && !c.pinned && inside(rectOf(c), cursor));
++        const c = hits.find(c => c.floating) ?? hits[0];
++        if (!c || c.fullscreen)
++            return;
++        const r = rectOf(c);
++        pos = cursor;
++        startPos = cursor;
++        moved = false;
++        plan = null;
++        appliedKey = "orig";
++        wantKey = "orig";
++        wantPlan = null;
++        applySteps = [];
++        pendingFinish = false;
++        restore = null;
++        if (!c.floating) {
++            const src = layoutOf(ws);
++            const parent = findParent(src.tree, c.address);
++            if (src.blocked)
++                return;
++            if (!parent) {
++                restore = { kind: "alone" };
++            } else {
++                const first = parent.a.window === c.address;
++                const sib = first ? parent.b : parent.a;
++                if (sib.window !== undefined) {
++                    restore = { kind: "insert", sibling: sib.window, ratio: parent.ratio,
++                                side: parent.split === "h" ? (first ? "left" : "right") : (first ? "top" : "bottom") };
++                } else {
++                    // The sibling is a whole subtree, which one insertion can't recreate.
++                    restore = { kind: "layout" };
++                    recordOrig.command = ["sh", "-c", `ws-layout record ${ws} > '${origFile}'`];
++                    recordOrig.running = true;
++                }
++            }
++        }
++        drag = {
++            address: c.address, floating: c.floating, ws: ws, rect: r,
++            grabU: (cursor.x - r.x) / r.w, grabV: (cursor.y - r.y) / r.h,
++            toplevel: ToplevelManager.toplevels.values.find(t => `0x${t.HyprlandToplevel.address}` === c.address) ?? null
++        };
++    }
++
++    Process { id: recordOrig }
++
++    function moveTo(p) {
++        if (!drag || dropping)
++            return;
++        pos = p;
++        if (!moved && Math.hypot(p.x - startPos.x, p.y - startPos.y) < 8)
++            return;
++        moved = true;
++        plan = computePlan(p);
++        if (trace && (traceCount++ % 6) === 0)
++            console.log("livedrag move", p, plan?.kind, plan?.ws, plan?.target, plan?.side);
++        const key = keyOf(plan);
++        if (key === wantKey)
++            return;
++        wantKey = key;
++        wantPlan = plan;
++        // Floating windows follow the cursor (throttled); tiled ones wait until the cursor
++        // rests in a zone for a moment, so crossing zones doesn't reshuffle every window.
++        if (drag.floating) {
++            if (!applyTimer.running)
++                applyTimer.start();
++        } else {
++            applyTimer.restart();
++        }
++    }
++
++    function keyOf(p) {
++        if (!p || p.kind === "none" || p.kind === "swap" || p.noop)
++            return "orig";
++        if (p.kind === "split")
++            return `split|${p.ws}|${p.target}|${p.side}`;
++        if (p.kind === "empty")
++            return `empty|${p.ws}`;
++        return `float|${p.ws}|${p.x}|${p.y}`;
++    }
++
++    Timer {
++        id: applyTimer
++        interval: 70
++        onTriggered: ld.pump()
++    }
++
++    function pump() {
++        if (applyBusy || !drag)
++            return;
++        if (wantKey === appliedKey) {
++            if (pendingFinish)
++                finish();
++            return;
++        }
++        applyingKey = wantKey;
++        const steps = stepsFor(wantKey, wantPlan);
++        if (trace)
++            console.log("livedrag apply", wantKey, JSON.stringify(steps));
++        if (dryRun) {
++            appliedKey = applyingKey;
++            pump();
++            return;
++        }
++        applyBusy = true;
++        applySteps = steps;
++        nextStep();
++    }
++
++    function nextStep() {
++        if (applySteps.length === 0) {
++            applyBusy = false;
++            appliedKey = applyingKey;
++            pump();
++            return;
++        }
++        const st = applySteps;
++        applyProc.command = st[0];
++        applySteps = st.slice(1);
++        applyProc.running = true;
++    }
++
++    Process {
++        id: applyProc
++        onExited: ld.nextStep()
++    }
++
++    function hyprBatch(cmds) {
++        return ["hyprctl", "--batch", cmds.join(" ; ")];
++    }
++
++    // Commands (argv lists, run in order) that bring the dragged window to the state `key`.
++    function stepsFor(key, p) {
++        const d = drag;
++        const win = a => `window = 'address:${a}'`;
++        const mv = (a, ws) => `dispatch hl.dsp.window.move({workspace = '${ws}', follow = false, ${win(a)}})`;
++        const focus = a => `dispatch hl.dsp.focus({${win(a)}})`;
++        const opts = o => "eval hl.config({ dwindle = { " + Object.keys(o).map(k => `${k} = ${o[k]}`).join(", ") + " } })";
++        // Split `target` and put the window on `side` with share `ratio`: on a desktop on screen
++        // dwindle splits the focused window.
++        // Focusing a window warps the cursor to it, which would yank it out of the user's hand:
++        // no_warps is on while the window is placed.
++        const warps = on => `eval hl.config({ cursor = { no_warps = ${on ? "true" : (noWarps ? "true" : "false")} } })`;
++        const insert = (ws, target, side, ratio) => [
++            warps(true),
++            opts({
++                force_split: side === "left" || side === "top" ? 1 : 2,
++                split_width_multiplier: side === "left" || side === "right" ? 0.01 : 100.0,
++                default_split_ratio: ratio, smart_split: false, use_active_for_splits: true
++            }),
++            focus(target), mv(d.address, ws), opts(dwindleSaved), warps(false)
++        ];
++        const park = mv(d.address, "special:ws-layout");
++
++        if (d.floating) {
++            const ws = key === "orig" ? d.ws : p.ws;
++            const x = key === "orig" ? d.rect.x : p.x, y = key === "orig" ? d.rect.y : p.y;
++            return [hyprBatch([mv(d.address, ws), `dispatch hl.dsp.window.move({x = ${x}, y = ${y}, ${win(d.address)}})`])];
++        }
++        if (key === "orig") {
++            if (restore?.kind === "insert")
++                return [hyprBatch([park, ...insert(d.ws, restore.sibling, restore.side, restore.ratio)])];
++            if (restore?.kind === "layout")
++                return [hyprBatch([park]), ["ws-layout", "apply", `${d.ws}`, origFile]];
++            return [hyprBatch([park, mv(d.address, d.ws)])];
++        }
++        if (p.kind === "empty")
++            return [hyprBatch([park, mv(d.address, p.ws)])];
++        return [hyprBatch([park, ...insert(p.ws, p.target, p.side, 1.0)])];
++    }
++
++    // On the release: the window is (or is about to be) where the plan puts it; a swap happens now.
++    function finish() {
++        const d = drag;
++        if (!d)
++            return;
++        if (!moved) {
++            clear();
++            return;
++        }
++        const p = plan;
++        const key = keyOf(p);
++        if (wantKey !== key) {
++            wantKey = key;
++            wantPlan = p;
++        }
++        applyTimer.stop();
++        if (applyBusy || appliedKey !== wantKey) {
++            pendingFinish = true;
++            dropping = true;
++            pump();
++            return;
++        }
++        const cmds = [];
++        if (p?.kind === "swap")
++            cmds.push(`dispatch hl.dsp.window.swap({target = 'address:${p.target}', window = 'address:${d.address}'})`);
++        cmds.push(`dispatch hl.dsp.focus({window = 'address:${d.address}'})`);
++        cmds.push(`dispatch hl.dsp.cursor.move({x = ${Math.round(pos.x)}, y = ${Math.round(pos.y)}})`);
++        if (trace)
++            console.log("livedrag drop", pos, p?.kind, cmds.join(" ; "));
++        if (!dryRun)
++            Quickshell.execDetached(hyprBatch(cmds));
++        if (p?.kind === "swap") {
++            dropping = true;
++            settleTimer.restart();
++        } else {
++            clear();
++        }
++    }
++
++    function clear() {
++        drag = null;
++        plan = null;
++        moved = false;
++        dropping = false;
++        pendingFinish = false;
++    }
++
++    // The overlay only gets motion while the cursor is over the surface the drag started on
++    // (Hyprland keeps a held button's pointer on that surface, and the other monitor's overlay
++    // gets nothing). Elsewhere the cursor is polled instead.
++    property double lastEvent: 0
++    function surfaceMove(p) {
++        lastEvent = Date.now();
++        moveTo(p);
++    }
++    Timer {
++        interval: 16
++        repeat: true
++        running: ld.active && !ld.dropping
++        onTriggered: if (Date.now() - ld.lastEvent > 40 && !cursorPoll.running) cursorPoll.running = true
++    }
++    Process {
++        id: cursorPoll
++        command: ["hyprctl", "cursorpos", "-j"]
++        stdout: StdioCollector {
++            onStreamFinished: {
++                if (!ld.active || ld.dropping || Date.now() - ld.lastEvent <= 40)
++                    return;
++                try {
++                    const c = JSON.parse(text);
++                    if (c.x !== ld.pos.x || c.y !== ld.pos.y)
++                        ld.moveTo(Qt.point(c.x, c.y));
++                } catch (e) {}
++            }
++        }
++    }
++
++    Timer {
++        id: settleTimer
++        interval: 280
++        onTriggered: ld.clear()
++    }
++
++    // The press and release binds pass the cursor position (hl.get_cursor_pos()).
++    IpcHandler {
++        target: "livedrag"
++
++        function start(x: real, y: real): void {
++            if (ld.drag || GlobalStates.overviewOpen)
++                return;
++            ld.begin(Qt.point(x, y));
++        }
++        function drop(x: real, y: real): void {
++            if (!ld.drag || ld.dropping)
++                return;
++            ld.moveTo(Qt.point(x, y));
++            ld.finish();
++        }
++        function setDryRun(on: bool): void {
++            ld.dryRun = on;
++        }
++        function setTrace(on: bool): void {
++            ld.trace = on;
++        }
++        function cancel() {
++            ld.clear();
++        }
++    }
++
++    HyprlandFocusGrab {
++        windows: overlays.instances
++        active: ld.active && !ld.dropping
++    }
++
++    // --- overlay ----------------------------------------------------------------------------
++
++    Variants {
++        id: overlays
++        model: Quickshell.screens
++
++        PanelWindow {
++            id: panel
++            required property var modelData
++            screen: modelData
++            visible: ld.active
++            color: "transparent"
++            exclusionMode: ExclusionMode.Ignore
++            WlrLayershell.layer: WlrLayer.Overlay
++            WlrLayershell.namespace: "quickshell:livedrag"
++            // No keyboard focus: with it, Hyprland doesn't fire the button's release bind.
++            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
++            anchors { top: true; bottom: true; left: true; right: true }
++
++            readonly property var mon: ld.monitorsSnap.find(m => m.name === modelData.name) ?? null
++            readonly property real ox: mon?.x ?? 0
++            readonly property real oy: mon?.y ?? 0
++            readonly property int shownWs: mon?.activeWorkspace?.id ?? -1
++            // Copies are only needed for a swap (applied on the drop); otherwise the real
++            // windows already show the result.
++            readonly property var layout: ld.plan?.kind === "swap" ? ld.plan?.predicted?.[shownWs] ?? null : null
++            readonly property var area: mon ? ld.workArea(mon) : null
++
++            Item {
++                id: content
++                anchors.fill: parent
++
++                MouseArea {
++                    anchors.fill: parent
++                    hoverEnabled: true
++                    onEntered: if (ld.trace) console.log("livedrag enter", panel.modelData.name)
++                    onPositionChanged: m => {
++                        if (containsMouse)
++                            ld.surfaceMove(Qt.point(m.x + panel.ox, m.y + panel.oy));
++                    }
++                }
++
++                // The desktop as the drop would leave it: the wallpaper over the work area, the
++                // other windows in their new places, floating ones where they are.
++                Item {
++                    visible: panel.layout !== null && panel.area !== null
++                    x: (panel.area?.x ?? 0) - panel.ox - ld.gapsOut[3]
++                    y: (panel.area?.y ?? 0) - panel.oy - ld.gapsOut[0]
++                    width: (panel.area?.w ?? 0) + ld.gapsOut[1] + ld.gapsOut[3]
++                    height: (panel.area?.h ?? 0) + ld.gapsOut[0] + ld.gapsOut[2]
++                    clip: true
++
++                    Image {
++                        readonly property string path: Config.options.overview.emptyWorkspaceWallpaper
++                        x: -parent.x
++                        y: -parent.y
++                        width: panel.width
++                        height: panel.height
++                        source: path.startsWith("~/") ? `file://${Quickshell.env("HOME")}${path.slice(1)}` : path
++                        fillMode: Image.PreserveAspectCrop
++                        asynchronous: true
++                        sourceSize.width: panel.width
++                    }
++                }
++
++                Repeater {
++                    model: ScriptModel {
++                        values: panel.layout === null ? [] : ld.snapshot.filter(c => c.workspace?.id === panel.shownWs
++                            && c.mapped && !c.hidden && c.address !== ld.drag?.address)
++                            .sort((a, b) => (a.floating ? 1 : 0) - (b.floating ? 1 : 0))
++                        objectProp: "address"
++                    }
++                    delegate: WindowCopy {
++                        required property var modelData
++                        readonly property var r: modelData.floating ? ld.rectOf(modelData) : panel.layout?.[modelData.address] ?? ld.rectOf(modelData)
++                        address: modelData.address
++                        natW: modelData.size[0]
++                        natH: modelData.size[1]
++                        x: r.x - panel.ox
++                        y: r.y - panel.oy
++                        width: r.w
++                        height: r.h
++                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                        Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                        Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    }
++                }
++
++                // Where the dragged window lands: glass for a swap, otherwise a frame around the
++                // real window, which is already there.
++                GlassSlot {
++                    id: slot
++                    readonly property var r: ld.plan?.ws === panel.shownWs && !ld.drag?.floating ? ld.plan?.slot ?? null : null
++                    visible: r !== null && !ld.plan?.noop && ld.plan?.kind === "swap"
++                    x: (r?.x ?? 0) - panel.ox
++                    y: (r?.y ?? 0) - panel.oy
++                    width: r?.w ?? 0
++                    height: r?.h ?? 0
++                    radius: Math.max(6, ld.rounding)
++                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                }
++
++                Rectangle {
++                    readonly property var r: ld.plan?.ws === panel.shownWs && !ld.drag?.floating && ld.plan?.kind !== "swap" ? ld.plan?.slot ?? null : null
++                    visible: r !== null && !ld.plan?.noop && !ld.dropping
++                    x: (r?.x ?? 0) - panel.ox - 3
++                    y: (r?.y ?? 0) - panel.oy - 3
++                    width: (r?.w ?? 0) + 6
++                    height: (r?.h ?? 0) + 6
++                    radius: ld.rounding + 3
++                    color: "#14FFFFFF"
++                    border.width: 3
++                    border.color: "#B3FFFFFF"
++                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                }
++
++                // The dragged window: a small copy under the cursor (tiled), or the window
++                // itself at its new position (floating). After the drop it settles into the slot.
++                WindowCopy {
++                    id: ghost
++                    readonly property var d: ld.drag
++                    readonly property real s: !d ? 1 : d.floating ? 1 : Math.min(1, 360 / Math.max(d.rect.w, d.rect.h))
++                    readonly property bool settle: ld.dropping && slot.visible
++                    visible: d !== null && ld.moved && !d.floating && !ld.dropping
++                    address: d?.address ?? ""
++                    toplevel: d?.toplevel ?? null
++                    natW: d?.rect.w ?? 1
++                    natH: d?.rect.h ?? 1
++                    x: settle ? slot.x : ld.pos.x - panel.ox - (d?.grabU ?? 0) * width
++                    y: settle ? slot.y : ld.pos.y - panel.oy - (d?.grabV ?? 0) * height
++                    width: settle ? slot.width : (d?.rect.w ?? 0) * s
++                    height: settle ? slot.height : (d?.rect.h ?? 0) * s
++                    opacity: d?.floating ? 1 : 0.9
++                    shadow: true
++                }
++            }
++        }
++    }
++
++    // A live copy of a window at its actual size, clipped to its box.
++    component WindowCopy: Item {
++        id: wc
++        property string address
++        property var toplevel: ToplevelManager.toplevels.values.find(t => `0x${t.HyprlandToplevel.address}` === wc.address) ?? null
++        property real natW: 1
++        property real natH: 1
++        property bool shadow: false
++
++        Rectangle {
++            visible: wc.shadow
++            anchors.fill: parent
++            anchors.margins: -1
++            radius: ld.rounding + 1
++            color: "transparent"
++            border.width: 1
++            border.color: "#59FFFFFF"
++        }
++
++        ClippingRectangle {
++            anchors.fill: parent
++            radius: ld.rounding
++            color: Appearance.colors.colLayer1
++            ScreencopyView {
++                // Actual size: a resized window shows more or less of itself, never zoomed.
++                width: wc.natW
++                height: wc.natH
++                // Keep the top-left corner (titles, tabs) rather than the middle.
++                x: 0
++                y: 0
++                captureSource: wc.visible ? wc.toplevel : null
++                live: true
++            }
++        }
++    }
++}
 diff --git c/modules/overview/MissionControlWindows.qml i/modules/overview/MissionControlWindows.qml
 new file mode 100644
 index 0000000..77feb33
@@ -1439,15 +2282,16 @@ index ca82adb..0ccdd2d 100644
      }
  }
 diff --git c/modules/overview/qmldir i/modules/overview/qmldir
-index 9b15b45..12ca08a 100644
+index 9b15b45..9051380 100644
 --- c/modules/overview/qmldir
 +++ i/modules/overview/qmldir
-@@ -1,3 +1,5 @@
+@@ -1,3 +1,6 @@
  Overview 1.0 Overview.qml
  OverviewWidget 1.0 OverviewWidget.qml
  OverviewWindow 1.0 OverviewWindow.qml
 +MissionControlWindows 1.0 MissionControlWindows.qml
 +GlassSlot 1.0 GlassSlot.qml
++LiveDrag 1.0 LiveDrag.qml
 diff --git c/services/GlobalStates.qml i/services/GlobalStates.qml
 index 7644e38..e0f59c9 100644
 --- c/services/GlobalStates.qml
@@ -1460,4 +2304,14 @@ index 7644e38..e0f59c9 100644
 +    // { kind: "window", address, toplevel, workspace, w, h, grabX, grabY } while one is dragged.
 +    property var crossDrag: null
 +    property point crossDragPos: Qt.point(0, 0) // cursor, global layout coordinates
+ }
+diff --git c/shell.qml i/shell.qml
+index 7fc9e0e..e1aec7a 100644
+--- c/shell.qml
++++ i/shell.qml
+@@ -22,4 +22,5 @@ ShellRoot {
+     }
+ 
+     Overview {}
++    LiveDrag {}
  }
