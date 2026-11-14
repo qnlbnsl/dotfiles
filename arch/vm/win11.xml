@@ -5,7 +5,8 @@
   Passthrough:  RTX A1000 0d:00.0/.1 (host GPU for CUDA; libvirt detaches it from nvidia on
                 start and gives it back on shutdown, see hooks/qemu.d/a1000-guard)
                 NVMe Sabrent/Phison E12 01:00.0 (whole controller; libvirt detaches it on start)
-                Logitech BRIO 046d:085e (camera; the host loses it while the VM runs)
+                Renesas USB 3.0 card 06:00.0 (BRIO camera + Litra Glow; host loses them while the VM runs)
+  Shared:       virtio-fs ~/Documents, ~/Downloads, ~/Projects
   Audio + mic:  SPICE audio, played/recorded by the Looking Glass client on the host.
   Input:        SPICE via the Looking Glass client.
   CPU:          the second CCD (cores 8-15 = host CPUs 8-15 + 24-31); emulator on CCD 1.
@@ -144,11 +145,14 @@
       <address type="pci" domain="0x0000" bus="0x06" slot="0x00" function="0x1"/>
     </hostdev>
 
-    <!-- Logitech BRIO webcam for Teams. -->
-    <hostdev mode="subsystem" type="usb" managed="yes">
-      <source startupPolicy="optional">
-        <vendor id="0x046d"/>
-        <product id="0x085e"/>
+    <!-- Renesas uPD720201 USB 3.0 card (own IOMMU group), whole controller: the Logitech
+         BRIO webcam for Teams (and the Litra Glow) plug into it. Passing the BRIO alone as a
+         USB device through qemu-xhci gave Windows a black picture: its SuperSpeed isochronous
+         video stream overran on the host (xhci "buffer overrun event", thousands per minute).
+         The card has its firmware in ROM, so Windows' inbox xHCI driver runs it. -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x06" slot="0x00" function="0x0"/>
       </source>
     </hostdev>
 
@@ -160,6 +164,24 @@
       </source>
     </hostdev>
 
+    <!-- Host folders in Windows (virtio-fs: WinFsp + the VirtIO-FS service from virtio-win).
+         Needs the shared memory backing above. -->
+    <filesystem type="mount" accessmode="passthrough">
+      <driver type="virtiofs"/>
+      <source dir="/home/qnlbnsl/Documents"/>
+      <target dir="Documents"/>
+    </filesystem>
+    <filesystem type="mount" accessmode="passthrough">
+      <driver type="virtiofs"/>
+      <source dir="/home/qnlbnsl/Downloads"/>
+      <target dir="Downloads"/>
+    </filesystem>
+    <filesystem type="mount" accessmode="passthrough">
+      <driver type="virtiofs"/>
+      <source dir="/home/qnlbnsl/Projects"/>
+      <target dir="Projects"/>
+    </filesystem>
+
     <controller type="usb" model="qemu-xhci" ports="15"/>
     <controller type="sata" index="0"/>
     <controller type="pci" model="pcie-root"/>
@@ -167,6 +189,13 @@
     <controller type="pci" model="pcie-root-port"/>
     <controller type="pci" model="pcie-root-port"/>
     <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <!-- Spare root ports: libvirt only adds as many as the devices need, and a running VM
+         can't gain one, so without spares nothing can be hot-plugged (attach-device fails
+         with "No more available PCI slots"). -->
     <controller type="pci" model="pcie-root-port"/>
     <controller type="pci" model="pcie-root-port"/>
     <controller type="pci" model="pcie-root-port"/>
