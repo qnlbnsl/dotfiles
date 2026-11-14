@@ -123,11 +123,20 @@ end
 -- Redone when monitors change.
 -- Numeric loops over #list, not ipairs: Omarchy's keybinding menu (Super+K) runs this file
 -- against a stub `hl` whose calls return an object that's never nil, so ipairs on it never ends.
+-- Only with both monitors (the G9's two PBP inputs) up. When they sleep they disconnect, and
+-- they wake one at a time, HDMI first: pinning then put every workspace, both Windows
+-- screens included, on the left one. With one monitor the old rules stay and nothing moves;
+-- the pass runs once the second is back (monitor.added / layout_changed).
+-- Omarchy's own reconciler (default/hypr/monitor-workspaces.lua) also moves workspaces on
+-- monitor changes; its blocks in ~/.local/state/omarchy/monitor-workspaces must agree with
+-- this (HDMI-A-1 = block 0 = 1-10, DP-7 = block 1 = 11-20) or the two fight.
+local PIN_MONITORS = 2
 local workspace_pins = {}
 local function pin_workspaces()
+  local monitors = hl.get_monitors()
+  if #monitors ~= PIN_MONITORS then return end
   for _, rule in ipairs(workspace_pins) do rule:set_enabled(false) end
   workspace_pins = {}
-  local monitors = hl.get_monitors()
   table.sort(monitors, function(a, b) return a.x < b.x end)
   for i = 1, #monitors do
     local m = monitors[i]
@@ -144,7 +153,8 @@ end
 pin_workspaces()
 hl.on("hyprland.start", pin_workspaces)
 hl.on("monitor.added", pin_workspaces)
-hl.on("monitor.removed", pin_workspaces)
+-- No monitor.removed: Hyprland still lists the monitor going away while it reports it, and
+-- with one left there's nothing to pin.
 -- A monitor that just woke up can still be at its old position when monitor.added fires, which
 -- sorted the two the wrong way round and put 1-10 on the right.
 hl.on("monitor.layout_changed", pin_workspaces)
