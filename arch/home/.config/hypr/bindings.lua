@@ -177,6 +177,13 @@ local windows_vm = os.getenv("HOME") .. "/.config/hypr/windows-vm.lua"
 local f = io.open(windows_vm)
 if f then f:close(); require("hypr.windows-vm") end
 
+-- Dictation keys from before Alt + Space and Right Alt became the defaults.
+-- Remove these lines to give the keys back to applications.
+if o.dictation_installed and o.dictation_installed() then
+  o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")
+  o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")
+end
+
 -- Super+drag a window: live rearranging (Mission Control step 4, arch/overview). While the button
 -- is held, the overview shell shows the layout the drop would make; the drop moves the window.
 -- The release is caught by a one-off bind on the bare button, so it still ends the drag when
