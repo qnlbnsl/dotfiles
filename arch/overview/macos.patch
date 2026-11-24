@@ -1452,7 +1452,7 @@ index 2fb08bb..2f829b0 100644
      }
  
 diff --git c/modules/overview/OverviewWidget.qml i/modules/overview/OverviewWidget.qml
-index ca82adb..0ccdd2d 100644
+index ca82adb..58e4dbe 100644
 --- c/modules/overview/OverviewWidget.qml
 +++ i/modules/overview/OverviewWidget.qml
 @@ -2,6 +2,7 @@ import QtQuick
@@ -1897,15 +1897,23 @@ index ca82adb..0ccdd2d 100644
                              Image {
                                  id: workspaceWallpaper
                                  visible: workspace.showWallpaper
-@@ -562,6 +933,7 @@ Item {
+@@ -562,30 +933,27 @@ Item {
                              MouseArea {
                                  id: workspaceArea
                                  anchors.fill: parent
+-                                acceptedButtons: Qt.LeftButton
+-                                onClicked: {
+-                                    if (root.draggingTargetWorkspace === -1) {
+-                                        GlobalStates.overviewOpen = false
+-                                        if (Hyprland.usingLua) {
+-                                            Hyprland.dispatch(`hl.dsp.focus({workspace = '${workspaceValue}'})`);
+-                                        } else {
+-                                            Hyprland.dispatch(`workspace ${workspaceValue}`)
+-                                        }
+-                                    }
+-                                }
 +                                hoverEnabled: true
-                                 acceptedButtons: Qt.LeftButton
-                                 onClicked: {
-                                     if (root.draggingTargetWorkspace === -1) {
-@@ -576,16 +948,22 @@ Item {
++                                acceptedButtons: Qt.NoButton // clicks: desktopDragLayer
                              }
  
                              DropArea {
@@ -1930,7 +1938,7 @@ index ca82adb..0ccdd2d 100644
                                  }
                              }
  
-@@ -1026,7 +1404,7 @@ Item {
+@@ -1026,7 +1394,7 @@ Item {
                          return ToplevelManager.toplevels.values.filter((toplevel) => {
                              const address = `0x${toplevel.HyprlandToplevel.address}`
                              var win = windowByAddress[address]
@@ -1939,7 +1947,7 @@ index ca82adb..0ccdd2d 100644
                                  return false;
                              const minWorkspace = root.workspaceGroup * root.workspacesShown + 1 + workspaceOffset;
                              const maxWorkspace = (root.workspaceGroup + 1) * root.workspacesShown + workspaceOffset;
-@@ -1068,6 +1446,49 @@ Item {
+@@ -1068,6 +1436,49 @@ Item {
                      widgetMonitorData: root.monitorData
                      scale: root.scale
                      availableWorkspaceWidth: root.workspaceImplicitWidth
@@ -1989,7 +1997,7 @@ index ca82adb..0ccdd2d 100644
                      availableWorkspaceHeight: root.workspaceImplicitHeight
                      widgetMonitorId: root.monitor.id
                      recaptureToken: root.previewRecaptureToken
-@@ -1094,6 +1515,9 @@ Item {
+@@ -1094,94 +1505,209 @@ Item {
                      z: atInitPosition ? (root.windowZ + index) : root.windowDraggingZ
                      Drag.hotSpot.x: targetWindowWidth / 2
                      Drag.hotSpot.y: targetWindowHeight / 2
@@ -1999,10 +2007,10 @@ index ca82adb..0ccdd2d 100644
                      MouseArea {
                          id: dragArea
                          anchors.fill: parent
-@@ -1101,57 +1525,9 @@ Item {
+                         hoverEnabled: true
                          onEntered: hovered = true
                          onExited: hovered = false
-                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+-                        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
 -                        drag.target: parent
 -                        onPressed: (mouse) => {
 -                            root.draggingFromWorkspace = windowData?.workspace.id
@@ -2054,13 +2062,27 @@ index ca82adb..0ccdd2d 100644
 -                                window.y = window.initY
 -                            }
 -                        }
-+                        onPressed: window.pressed = true
-+                        onReleased: window.pressed = false
-+                        onCanceled: window.pressed = false
-                         onClicked: (event) => {
-                             if (!windowData) return;
- 
-@@ -1175,13 +1551,154 @@ Item {
+-                        onClicked: (event) => {
+-                            if (!windowData) return;
+-
+-                            if (event.button === Qt.LeftButton) {
+-                                GlobalStates.overviewOpen = false
+-                                if (Hyprland.usingLua) {
+-                                    Hyprland.dispatch(`hl.dsp.focus({ window = 'address:${windowData.address}' })`);
+-                                } else {
+-                                    Hyprland.dispatch(`focuswindow address:${windowData.address}`)
+-                                }
+-                                event.accepted = true
+-                            } else if (event.button === Qt.MiddleButton) {
+-                                if (Hyprland.usingLua) {
+-                                    Hyprland.dispatch(`hl.dsp.window.close('address:${windowData.address}')`);
+-                                } else {
+-                                    Hyprland.dispatch(`closewindow address:${windowData.address}`)
+-                                }
+-                                event.accepted = true
+-                            }
+-                        }
++                        acceptedButtons: Qt.NoButton // clicks: desktopDragLayer
  
                          StyledToolTip {
                              extraVisibleCondition: false
@@ -2078,6 +2100,48 @@ index ca82adb..0ccdd2d 100644
 +                id: desktopDragLayer
 +                anchors.fill: parent
 +                z: root.windowDraggingZ + 2
++
++                // Clicks are handled here too: the DragHandler's press never reaches the thumbnails
++                // and windows below this layer.
++                function windowAt(x, y) {
++                    let best = null;
++                    for (const item of windowSpace.children) {
++                        if (!item.windowData || !item.visible || item.opacity === 0
++                            || !item.contains(item.mapFromItem(desktopDragLayer, x, y)))
++                            continue;
++                        if (!best || item.z > best.z)
++                            best = item;
++                    }
++                    return best?.windowData ?? null;
++                }
++
++                // Click: go to that desktop, focusing the window under the cursor if there is one.
++                TapHandler {
++                    acceptedButtons: Qt.LeftButton
++                    onTapped: eventPoint => {
++                        const p = eventPoint.position;
++                        const col = root.deskColumnAt(p.x, p.y);
++                        if (col < 0 || root.deskDragFrom !== -1 || deskOp.running)
++                            return;
++                        const win = desktopDragLayer.windowAt(p.x, p.y);
++                        const ws = root.getWorkspaceInCell(0, col);
++                        GlobalStates.overviewOpen = false;
++                        if (win)
++                            Hyprland.dispatch(Hyprland.usingLua ? `hl.dsp.focus({ window = 'address:${win.address}' })` : `focuswindow address:${win.address}`);
++                        else
++                            Hyprland.dispatch(Hyprland.usingLua ? `hl.dsp.focus({workspace = '${ws}'})` : `workspace ${ws}`);
++                    }
++                }
++
++                // Middle click closes the window under the cursor.
++                TapHandler {
++                    acceptedButtons: Qt.MiddleButton
++                    onTapped: eventPoint => {
++                        const win = desktopDragLayer.windowAt(eventPoint.position.x, eventPoint.position.y);
++                        if (win)
++                            Hyprland.dispatch(Hyprland.usingLua ? `hl.dsp.window.close({ window = 'address:${win.address}' })` : `closewindow address:${win.address}`);
++                    }
++                }
 +
 +                HoverHandler {
 +                    onPointChanged: root.deskHoverColumn = hovered ? root.deskColumnAt(point.position.x, point.position.y) : -1
@@ -2216,7 +2280,7 @@ index ca82adb..0ccdd2d 100644
              Rectangle { // Focused workspace indicator
                  id: focusedWorkspaceIndicator
                  property int activeWorkspaceRowIndex: root.getWorkspaceRow(root.effectiveActiveWorkspaceId)
-@@ -1192,9 +1709,17 @@ Item {
+@@ -1192,9 +1718,17 @@ Item {
                  z: root.windowDraggingZ - 1
                  width: root.workspaceImplicitWidth
                  height: root.workspaceImplicitHeight
@@ -2235,7 +2299,7 @@ index ca82adb..0ccdd2d 100644
                  border.color: root.activeBorderColor
                  Behavior on x {
                      animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-@@ -1209,6 +1734,45 @@ Item {
+@@ -1209,6 +1743,45 @@ Item {
              id: specialWindowDragLayer
              anchors.fill: parent
              z: root.windowDraggingZ + 1
